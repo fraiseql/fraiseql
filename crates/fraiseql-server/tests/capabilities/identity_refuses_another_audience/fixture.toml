@@ -1,0 +1,15 @@
+# A bearer signed for another audience is refused before enrichment runs: no actor is
+# provisioned for its subject.
+capability = "identity"
+role = "hostile"
+deadline_secs = 5
+
+[[stimulus]]
+http = { method = "POST", path = "/graphql", body = '{"query":"{ notes { id } }"}', auth = { oidc = { sub = "agent-1", aud = "another-service" } }, status = 401 }
+
+[effect]
+none = { of = { row = { query = "SELECT sub FROM app.tb_actor", expect = [
+  [
+    "agent-1",
+  ],
+] } } }

@@ -1462,7 +1462,7 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
         Effect::Never { .. } => Err(Broken("a `none` is judged by the runner".to_owned())),
         Effect::Flight { ticket, auth, rows } => {
             let bearer = auth.bearer(&served.receiver).map_err(Broken)?;
-            let got = flight_rows(&served.flight, &bearer, ticket).await.map_err(Broken)?;
+            let got = flight_rows(&served.flight, &bearer, ticket).await?;
             if got == *rows {
                 Ok(())
             } else {
@@ -1553,21 +1553,30 @@ fn pointed(
 /// a Flight client reads them: the handshake answers a session token, which the `do_get`
 /// presents.
 #[cfg(feature = "arrow")]
-async fn flight_rows(address: &str, bearer: &str, ticket: &str) -> Result<usize, String> {
+async fn flight_rows(address: &str, bearer: &str, ticket: &str) -> Result<usize, Unmet> {
     use fraiseql_arrow::{
         arrow_flight::{
             HandshakeRequest, Ticket, decode::FlightRecordBatchStream, error::FlightError,
             flight_service_client::FlightServiceClient,
         },
-        tonic::{Request, transport::Endpoint},
+        tonic::{Code, Request, Status, transport::Endpoint},
     };
     use futures::{StreamExt as _, TryStreamExt as _};
 
+    // The server answering that the caller may not have the rows is the probe looking and
+    // finding none; anything else is a probe that could not look.
+    let answered = |step: &str, status: Status| match status.code() {
+        Code::Unauthenticated | Code::PermissionDenied => {
+            Unmet::NotYet(format!("Flight {step} refused: {status}"))
+        },
+        _ => Unmet::Broken(format!("Flight {step}: {status}")),
+    };
+
     let channel = Endpoint::from_shared(address.to_owned())
-        .map_err(|e| e.to_string())?
+        .map_err(|e| Unmet::Broken(e.to_string()))?
         .connect()
         .await
-        .map_err(|e| format!("connect to Flight at {address}: {e}"))?;
+        .map_err(|e| Unmet::Broken(format!("connect to Flight at {address}: {e}")))?;
     let mut client = FlightServiceClient::new(channel);
     let handshake = HandshakeRequest {
         protocol_version: 0,
@@ -1576,39 +1585,41 @@ async fn flight_rows(address: &str, bearer: &str, ticket: &str) -> Result<usize,
     let mut answers = client
         .handshake(futures::stream::iter([handshake]))
         .await
-        .map_err(|status| format!("Flight handshake: {status}"))?
+        .map_err(|status| answered("handshake", status))?
         .into_inner();
     let session = answers
         .next()
         .await
-        .ok_or("the Flight handshake answered nothing")?
-        .map_err(|status| format!("Flight handshake: {status}"))?
+        .ok_or_else(|| Unmet::Broken("the Flight handshake answered nothing".to_owned()))?
+        .map_err(|status| answered("handshake", status))?
         .payload;
-    let session = String::from_utf8(session.to_vec()).map_err(|e| e.to_string())?;
+    let session = String::from_utf8(session.to_vec()).map_err(|e| Unmet::Broken(e.to_string()))?;
 
     let mut request = Request::new(Ticket {
         ticket: ticket.as_bytes().to_vec().into(),
     });
     request.metadata_mut().insert(
         "authorization",
-        format!("Bearer {session}").parse().map_err(|e| format!("session token: {e}"))?,
+        format!("Bearer {session}")
+            .parse()
+            .map_err(|e| Unmet::Broken(format!("session token: {e}")))?,
     );
     let data = client
         .do_get(request)
         .await
-        .map_err(|status| format!("Flight do_get: {status}"))?
+        .map_err(|status| answered("do_get", status))?
         .into_inner()
         .map_err(FlightError::from);
     let batches: Vec<_> = FlightRecordBatchStream::new_from_flight_data(data)
         .try_collect()
         .await
-        .map_err(|e| format!("Flight do_get stream: {e}"))?;
+        .map_err(|e| Unmet::Broken(format!("Flight do_get stream: {e}")))?;
     Ok(batches.iter().map(|batch| batch.num_rows()).sum())
 }
 
 #[cfg(not(feature = "arrow"))]
-async fn flight_rows(_address: &str, _bearer: &str, _ticket: &str) -> Result<usize, String> {
-    Err("a `flight` effect needs the `arrow` feature".to_owned())
+async fn flight_rows(_address: &str, _bearer: &str, _ticket: &str) -> Result<usize, Unmet> {
+    Err(Unmet::Broken("a `flight` effect needs the `arrow` feature".to_owned()))
 }
 
 /// A fixture's `fixture.toml`.
@@ -1985,6 +1996,15 @@ mod harness_rules {
     async fn a_row_probe_on_a_database_that_does_not_answer_is_broken() {
         let probe =
             observe_row("postgres://postgres:pw@127.0.0.1:1/none", "", "SELECT 1", &[]).await;
+        assert!(matches!(probe, Err(Unmet::Broken(_))), "{probe:?}");
+    }
+
+    /// A Flight server that does not answer is a probe that could not look, not one that was
+    /// refused: a hostile Flight fixture would otherwise pass on it.
+    #[cfg(feature = "arrow")]
+    #[tokio::test]
+    async fn a_flight_probe_on_a_server_that_does_not_answer_is_broken() {
+        let probe = flight_rows("http://127.0.0.1:1", "token", "{}").await;
         assert!(matches!(probe, Err(Unmet::Broken(_))), "{probe:?}");
     }
 

@@ -1,0 +1,19 @@
+# A webhook delivery signed with a secret other than the configured one is refused and
+# dispatches nothing.
+capability = "inbound_webhooks"
+role = "hostile"
+deadline_secs = 5
+
+[env]
+FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
+FIXTURE_ORDERS_WEBHOOK_SECRET = "fixture-secret"
+
+[[stimulus]]
+http = { method = "POST", path = "/webhooks/orders", body = '{"id":"evt_1","type":"order.created"}', sign = { header = "X-Signature", secret = "another-secret", prefix = "sha256=" }, status = 401 }
+
+[effect]
+none = { of = { row = { query = "SELECT source FROM app.tb_delivery", expect = [
+  [
+    "orders",
+  ],
+] } } }

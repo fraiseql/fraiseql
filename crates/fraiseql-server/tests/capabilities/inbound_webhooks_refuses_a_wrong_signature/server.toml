@@ -1,0 +1,7 @@
+cors_enabled = false
+
+[webhooks.orders]
+provider = "hmac-sha256"
+secret_env = "FIXTURE_ORDERS_WEBHOOK_SECRET"
+credential = "header:X-Signature"
+prefix = "sha256="

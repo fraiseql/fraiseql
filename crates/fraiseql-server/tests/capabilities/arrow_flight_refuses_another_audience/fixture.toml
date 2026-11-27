@@ -1,0 +1,11 @@
+# A Flight handshake presenting a bearer signed for another audience is refused, and the
+# view's rows are never streamed to it.
+capability = "arrow_flight"
+role = "hostile"
+deadline_secs = 5
+
+[env]
+FLIGHT_SESSION_SECRET = "capability-fixture-flight-session-secret"
+
+[effect]
+none = { of = { flight = { ticket = '{"type":"OptimizedView","view":"va_note"}', auth = { oidc = { sub = "analyst", aud = "another-service" } }, rows = 2 } } }

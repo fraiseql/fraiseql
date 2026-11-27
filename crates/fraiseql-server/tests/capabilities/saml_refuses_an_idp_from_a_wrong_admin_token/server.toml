@@ -1,0 +1,9 @@
+cors_enabled = false
+admin_token = "capability-fixture-admin-token-32-chars-long"
+
+[auth_issuer]
+url = "https://sp.example.com"
+audience = "fraiseql"
+
+[saml]
+store_enabled = true

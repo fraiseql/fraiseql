@@ -1,0 +1,14 @@
+# An MCP `tools/call` of a mutation `[mcp] exclude` names is refused and inserts nothing.
+capability = "mcp"
+role = "hostile"
+deadline_secs = 5
+
+[[stimulus]]
+mcp = { path = "/mcp", tool = "createNote", arguments = { title = "from an agent" } }
+
+[effect]
+none = { of = { row = { query = "SELECT title FROM app.tb_note", expect = [
+  [
+    "from an agent",
+  ],
+] } } }

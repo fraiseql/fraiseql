@@ -1,0 +1,32 @@
+{
+  "types": [
+    {
+      "name": "Delivery", "sql_source": "app.v_delivery", "is_input": false,
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "source", "type": "String", "nullable": false }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "deliveries", "return_type": "Delivery", "returns_list": true, "nullable": false,
+      "sql_source": "app.v_delivery", "arguments": []
+    }
+  ],
+  "mutations": [
+    {
+      "name": "recordDelivery", "return_type": "Delivery", "operation": "insert",
+      "sql_source": "app.fn_record_delivery",
+      "arguments": [{ "name": "source", "type": "String", "nullable": false }]
+    }
+  ],
+  "functions": [
+    {
+      "name": "on_delivery",
+      "trigger": "after:ingest:webhook:hmac-sha256",
+      "runtime": "Deno",
+      "run_as": { "roles": ["ingest"] }
+    }
+  ]
+}

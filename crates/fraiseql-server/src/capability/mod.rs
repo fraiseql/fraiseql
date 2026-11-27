@@ -28,7 +28,7 @@ use crate::{
 mod schema;
 mod threat;
 
-pub(crate) use threat::ThreatModel;
+pub(crate) use threat::{Refusal, ThreatModel};
 
 /// A capability and whether this build compiled it in.
 ///
@@ -221,7 +221,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["every query and mutation the schema exposes"],
             crosses: &["an agent client's tool call into the executor"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a tool call of an operation `[mcp] exclude` names",
+                fixture: "mcp_refuses_an_excluded_tool",
+            }],
         },
     },
     register! {
@@ -237,7 +240,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the tables behind each resource"],
             crosses: &["an HTTP client's request into the executor"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a write with no bearer, on a resource that requires one",
+                fixture: "rest_refuses_an_anonymous_write",
+            }],
         },
     },
     register! {
@@ -307,7 +313,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the rows a ticket streams"],
             crosses: &["a Flight client's handshake and ticket into the executor"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a handshake with a bearer signed for another audience",
+                fixture: "arrow_flight_refuses_another_audience",
+            }],
         },
     },
     register! {
@@ -323,7 +332,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the tables a delivery's handler writes"],
             crosses: &["an outside sender's delivery into the database"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a delivery signed with another secret",
+                fixture: "inbound_webhooks_refuses_a_wrong_signature",
+            }],
         },
     },
     register! {
@@ -355,7 +367,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the actor rows enrichment reads and provisions"],
             crosses: &["a bearer's claims into SQL parameters"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a bearer signed for another audience",
+                fixture: "identity_refuses_another_audience",
+            }],
         },
     },
     register! {
@@ -373,7 +388,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["each MCP session's stored state"],
             crosses: &["an agent client's session into the state table"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a session opened with a bearer signed for another audience",
+                fixture: "session_state_refuses_another_audience",
+            }],
         },
     },
     register! {
@@ -389,7 +407,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the sessions an assertion signs in to", "the identity-provider registry"],
             crosses: &["an identity provider's assertion into a session"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "an identity provider registered without the admin token",
+                fixture: "saml_refuses_an_idp_from_a_wrong_admin_token",
+            }],
         },
     },
     register! {

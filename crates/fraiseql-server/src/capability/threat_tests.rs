@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use super::{REGISTRY, ThreatModel, threat::Refusal};
+use super::{REGISTRY, Refusal, ThreatModel};
 
 /// Registrations with no hostile fixture yet, each with the issue that tracks it.
 /// Shrink-only: the gate fails when one of these gains a refusal or a hostile fixture, so
@@ -13,17 +13,10 @@ use super::{REGISTRY, ThreatModel, threat::Refusal};
 const NO_HOSTILE_FIXTURE_YET: &[(&str, &str)] = &[
     ("functions", "#1845"),
     ("sources", "#1845"),
-    ("mcp", "#1845"),
-    ("rest", "#1845"),
     ("grpc", "#1845"),
     ("federation", "#1845"),
     ("observers", "#1845"),
-    ("arrow_flight", "#1845"),
-    ("inbound_webhooks", "#1845"),
     ("inbound_email", "#1845"),
-    ("identity", "#1845"),
-    ("session_state", "#1845"),
-    ("saml", "#1845"),
     ("cdc_outbound", "#1845"),
     ("subscription_kafka", "#1845"),
 ];

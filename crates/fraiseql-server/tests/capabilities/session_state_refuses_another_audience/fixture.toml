@@ -1,0 +1,15 @@
+# An MCP session opened with a bearer signed for another audience is refused, and no
+# session state is stored for it.
+capability = "session_state"
+role = "hostile"
+deadline_secs = 5
+
+[[stimulus]]
+http = { method = "POST", path = "/mcp", body = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"capability-fixture","version":"0"}}}', auth = { oidc = { sub = "agent-1", aud = "another-service" } }, status = 401 }
+
+[effect]
+none = { of = { row = { query = "SELECT count(*)::text FROM _system.session_state", expect = [
+  [
+    "1",
+  ],
+] } } }

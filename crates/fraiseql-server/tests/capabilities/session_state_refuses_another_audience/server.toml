@@ -1,0 +1,8 @@
+cors_enabled = false
+
+[auth]
+issuer = "$RECEIVER_URL"
+audience = "fraiseql"
+
+[session_state]
+backend = "postgres"
