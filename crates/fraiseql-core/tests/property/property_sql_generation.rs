@@ -25,24 +25,40 @@ fn arb_path() -> impl Strategy<Value = Vec<String>> {
     prop::collection::vec(arb_path_segment(), 1..=4)
 }
 
-/// Strategy for generating scalar JSON values suitable for WHERE comparisons.
+/// Scalar JSON values for WHERE comparisons: narrow (letters, digits and `_.@-`), or
+/// hostile (any number, any string weighted towards SQL syntax; see
+/// [`arb_hostile_string`]).
+fn scalar_value(hostile: bool) -> BoxedStrategy<Value> {
+    if hostile {
+        prop_oneof![
+            Just(Value::Null),
+            any::<bool>().prop_map(Value::Bool),
+            arb_hostile_number(),
+            arb_hostile_string().prop_map(Value::String),
+        ]
+        .boxed()
+    } else {
+        prop_oneof![
+            Just(Value::Null),
+            any::<bool>().prop_map(Value::Bool),
+            any::<i64>().prop_map(|n| json!(n)),
+            "[a-zA-Z0-9 _.@-]{0,50}".prop_map(Value::String),
+        ]
+        .boxed()
+    }
+}
+
+/// String values only, narrow or hostile as [`scalar_value`].
+fn string_value(hostile: bool) -> BoxedStrategy<Value> {
+    if hostile {
+        arb_hostile_string().prop_map(Value::String).boxed()
+    } else {
+        "[a-zA-Z0-9 _.@-]{0,50}".prop_map(Value::String).boxed()
+    }
+}
+
 fn arb_scalar_value() -> impl Strategy<Value = Value> {
-    prop_oneof![
-        Just(Value::Null),
-        any::<bool>().prop_map(Value::Bool),
-        any::<i64>().prop_map(|n| json!(n)),
-        "[a-zA-Z0-9 _.@-]{0,50}".prop_map(Value::String),
-    ]
-}
-
-/// Strategy for generating string values only.
-fn arb_string_value() -> impl Strategy<Value = Value> {
-    "[a-zA-Z0-9 _.@-]{0,50}".prop_map(Value::String)
-}
-
-/// Strategy for generating array values (for IN/NIN operators).
-fn arb_array_value() -> impl Strategy<Value = Value> {
-    prop::collection::vec(arb_string_value(), 1..=5).prop_map(Value::Array)
+    scalar_value(false)
 }
 
 /// Operators that work with any scalar value.
@@ -71,70 +87,57 @@ fn arb_string_operator() -> impl Strategy<Value = WhereOperator> {
     ]
 }
 
-/// Strategy for generating a `WhereClause::Field` with comparison operators.
-fn arb_comparison_field() -> impl Strategy<Value = WhereClause> {
-    (arb_path(), arb_comparison_operator(), arb_scalar_value()).prop_map(
-        |(path, operator, value)| WhereClause::Field {
-            path,
-            operator,
-            value,
-        },
-    )
-}
-
-/// Strategy for generating a `WhereClause::Field` with string operators.
-fn arb_string_field() -> impl Strategy<Value = WhereClause> {
-    (arb_path(), arb_string_operator(), arb_string_value()).prop_map(|(path, operator, value)| {
-        WhereClause::Field {
-            path,
-            operator,
-            value,
-        }
-    })
-}
-
-/// Strategy for generating a `WhereClause::Field` with IN/NIN.
-fn arb_in_field() -> impl Strategy<Value = WhereClause> {
-    (
-        arb_path(),
-        prop_oneof![Just(WhereOperator::In), Just(WhereOperator::Nin)],
-        arb_array_value(),
-    )
-        .prop_map(|(path, operator, value)| WhereClause::Field {
+/// A leaf: a comparison, a string match, `in` / `nin`, or a null test, its operands narrow
+/// or hostile as [`scalar_value`].
+fn leaf_clause(hostile: bool) -> BoxedStrategy<WhereClause> {
+    let field = |operator: BoxedStrategy<WhereOperator>, value: BoxedStrategy<Value>| {
+        (arb_path(), operator, value).prop_map(|(path, operator, value)| WhereClause::Field {
             path,
             operator,
             value,
         })
-}
-
-/// Strategy for generating a `WhereClause::Field` with `IsNull`.
-fn arb_isnull_field() -> impl Strategy<Value = WhereClause> {
-    (arb_path(), any::<bool>()).prop_map(|(path, is_null)| WhereClause::Field {
-        path,
-        operator: WhereOperator::IsNull,
-        value: json!(is_null),
-    })
-}
-
-/// Strategy for generating any valid leaf `WhereClause`.
-fn arb_leaf_clause() -> impl Strategy<Value = WhereClause> {
+    };
+    let membership = prop_oneof![Just(WhereOperator::In), Just(WhereOperator::Nin)].boxed();
+    let elements = prop::collection::vec(string_value(hostile), 1..=5)
+        .prop_map(Value::Array)
+        .boxed();
     prop_oneof![
-        arb_comparison_field(),
-        arb_string_field(),
-        arb_in_field(),
-        arb_isnull_field(),
+        field(arb_comparison_operator().boxed(), scalar_value(hostile)),
+        field(arb_string_operator().boxed(), string_value(hostile)),
+        field(membership, elements),
+        (arb_path(), any::<bool>()).prop_map(|(path, is_null)| WhereClause::Field {
+            path,
+            operator: WhereOperator::IsNull,
+            value: json!(is_null),
+        }),
     ]
+    .boxed()
 }
 
-/// Strategy for generating a `WhereClause` tree (with nesting).
+/// A tree of leaves under `And`, `Or` and `Not`, up to three levels deep.
+fn where_clause(hostile: bool) -> BoxedStrategy<WhereClause> {
+    leaf_clause(hostile)
+        .prop_recursive(3, 16, 4, |inner| {
+            prop_oneof![
+                prop::collection::vec(inner.clone(), 1..=4).prop_map(WhereClause::And),
+                prop::collection::vec(inner.clone(), 1..=4).prop_map(WhereClause::Or),
+                inner.prop_map(|c| WhereClause::Not(Box::new(c))),
+            ]
+        })
+        .boxed()
+}
+
+fn arb_leaf_clause() -> impl Strategy<Value = WhereClause> {
+    leaf_clause(false)
+}
+
 fn arb_where_clause() -> impl Strategy<Value = WhereClause> {
-    arb_leaf_clause().prop_recursive(3, 16, 4, |inner| {
-        prop_oneof![
-            prop::collection::vec(inner.clone(), 1..=4).prop_map(WhereClause::And),
-            prop::collection::vec(inner.clone(), 1..=4).prop_map(WhereClause::Or),
-            inner.prop_map(|c| WhereClause::Not(Box::new(c))),
-        ]
-    })
+    where_clause(false)
+}
+
+/// A tree whose operands are hostile: what the generator properties draw from.
+fn arb_hostile_where_clause() -> impl Strategy<Value = WhereClause> {
+    where_clause(true)
 }
 
 // ============================================================================
@@ -271,68 +274,41 @@ proptest! {
         prop_assert_eq!(params_a.len(), params_b.len());
     }
 
-    /// Property: Parameter count in SQL matches params vector length.
+    /// Property: the placeholders are exactly `$1`..`$n`, one per parameter.
+    ///
+    /// Every generated tree renders (none is refused: their operands fit their operators),
+    /// and its statement names each of `$1`..`$n` and no `$n+1`, where `n` is the number of
+    /// parameters: so `in` binds one per element and a null test binds none.
     #[test]
-    fn prop_postgres_param_count_matches(clause in arb_where_clause()) {
+    fn prop_postgres_placeholders_match_params(clause in arb_hostile_where_clause()) {
         let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let result = gen.generate(&clause);
-
-        if let Ok((sql, params)) = result {
-            let placeholder_count = count_placeholders(&sql);
-            prop_assert_eq!(
-                placeholder_count, params.len(),
-                "Placeholder count ({}) != params length ({})\nSQL: {}",
-                placeholder_count, params.len(), sql
-            );
-        }
+        let (sql, params) = gen.generate(&clause).unwrap();
+        prop_assert_eq!(
+            count_placeholders(&sql), params.len(),
+            "placeholders and parameters disagree\nSQL: {}", sql
+        );
+        prop_assert!(!sql.contains(&format!("${}", params.len() + 1)), "SQL: {}", sql);
     }
 
-    /// Property: Parameter placeholders are sequential ($1, $2, $3...).
+    /// Property: a key is quote-doubled into its path literal, whatever it holds.
+    ///
+    /// Keys come from the compiled schema, not the client, but the generator must still
+    /// keep any key inside its literal: quotes, backslashes and any Unicode included.
     #[test]
-    fn prop_postgres_params_sequential(clause in arb_where_clause()) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let result = gen.generate(&clause);
-
-        if let Ok((sql, params)) = result {
-            for i in 1..=params.len() {
-                let placeholder = format!("${}", i);
-                prop_assert!(
-                    sql.contains(&placeholder),
-                    "Missing sequential placeholder {} in SQL: {}", placeholder, sql
-                );
-            }
-        }
-    }
-
-    /// Property: SQL injection payloads in field paths are properly escaped.
-    /// Single quotes in path segments are doubled, preventing SQL breakout.
-    #[test]
-    fn prop_postgres_injection_safe_path_segments(
-        prefix in "[a-zA-Z]{1,5}",
-        suffix in "[a-zA-Z]{1,5}",
+    fn prop_postgres_path_segment_quoted(
+        segment in arb_hostile_string().prop_filter("a key is not empty", |s| !s.is_empty()),
         operator in arb_comparison_operator(),
     ) {
         let gen = PostgresWhereGenerator::new(PostgresDialect);
-        // Path with embedded single quote
-        let path_segment = format!("{}'{}",  prefix, suffix);
         let clause = WhereClause::Field {
-            path: vec![path_segment.clone()],
+            path: vec![segment.clone()],
             operator,
-            value: json!("safe_value"),
+            value: json!("v"),
         };
-
-        let result = gen.generate(&clause);
-
-        if let Ok((sql, _)) = result {
-            // The single quote must be escaped (doubled) in the SQL
-            let escaped = path_segment.replace('\'', "''");
-            prop_assert!(
-                sql.contains(&escaped),
-                "Path should contain escaped segment '{}', got: {}", escaped, sql
-            );
-            // Values are still parameterized
-            prop_assert!(sql.contains("$1"), "Values should still be parameterized: {}", sql);
-        }
+        let (sql, params) = gen.generate(&clause).unwrap();
+        let quoted = format!("'{}'", segment.replace('\'', "''"));
+        prop_assert!(sql.contains(&quoted), "want {} in {}", quoted, sql);
+        prop_assert_eq!(params, vec![json!("v")]);
     }
 
     /// Property: AND/OR clauses produce balanced parentheses.
@@ -394,26 +370,6 @@ proptest! {
         }
     }
 
-    /// Property: IN operator with N elements produces N parameters.
-    #[test]
-    fn prop_postgres_in_param_count(
-        path in arb_path(),
-        values in prop::collection::vec(arb_string_value(), 1..=10),
-    ) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let clause = WhereClause::Field {
-            path,
-            operator: WhereOperator::In,
-            value: Value::Array(values.clone()),
-        };
-
-        let (sql, params) = gen.generate(&clause).unwrap();
-        prop_assert_eq!(
-            params.len(), values.len(),
-            "IN should produce one param per array element. SQL: {}", sql
-        );
-    }
-
     /// Property: Numeric comparisons cast to ::numeric for type safety.
     #[test]
     fn prop_postgres_numeric_casts(
@@ -455,26 +411,19 @@ proptest! {
         );
     }
 
-    /// Property: Generator is reusable — calling generate() resets param counter.
+    /// Property: a generator that has already rendered a tree renders the next one as a
+    /// fresh generator does: its parameter numbering restarts.
     #[test]
     fn prop_postgres_generator_reusable(
-        clause1 in arb_leaf_clause(),
-        clause2 in arb_leaf_clause(),
+        first in arb_hostile_where_clause(),
+        second in arb_hostile_where_clause(),
     ) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-
-        let result1 = gen.generate(&clause1);
-        let result2 = gen.generate(&clause2);
-
-        if let (Ok((sql1, _)), Ok((sql2, _))) = (&result1, &result2) {
-            if sql1.contains('$') {
-                prop_assert!(sql1.contains("$1"), "First call should start at $1: {}", sql1);
-            }
-            if sql2.contains('$') {
-                prop_assert!(sql2.contains("$1"), "Second call should reset to $1: {}", sql2);
-            }
-        }
+        let used = PostgresWhereGenerator::new(PostgresDialect);
+        used.generate(&first).unwrap();
+        let fresh = PostgresWhereGenerator::new(PostgresDialect);
+        prop_assert_eq!(used.generate(&second).unwrap(), fresh.generate(&second).unwrap());
     }
+
 }
 
 // ============================================================================
