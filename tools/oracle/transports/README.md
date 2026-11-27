@@ -59,6 +59,10 @@ selected field it left out is the issue `omitted:<fields>`: it is counted, not s
 With a baseline present, each metric line shows its change from the baseline, and
 whether that change is better or worse.
 
+"No row on POST, served elsewhere" is also gated as a ratchet. A value above the
+baseline's fails the run, and a value below it is progress to record with `--bless`. It
+stands at 0. A baseline that lacks the value counts as 0.
+
 ## The WS column
 
 Subscriptions are graded on the rows the run writes, against what POST reads for the
@@ -146,6 +150,8 @@ gate goes red. It needs a server that matches the baseline.
   - a refused WS subscription answers its refusal, whatever it received;
   - a WS row delivered twice differs from POST's one row;
   - an MCP cell that leaves out a selected field is counted.
+- The ratchet fails in both directions and names the metric. A baseline without the
+  value ratchets at 0.
 - Every list in the baseline is a gate site. A one-entry change to it fails the run in
   both directions and names that entry. The sites come from the baseline itself, not
   from the gate's list, so a list the gate stops reading fails here. A changed corpus
@@ -157,7 +163,8 @@ gate goes red. It needs a server that matches the baseline.
 - The proxy cannot carry WebSockets, so `oracle.ws.run` takes a `tamper` hook for the
   self-test only. It changes what the subscriptions received before they are graded:
   - every live B-viewer subscription receives tenant A's row: exactly those cells are
-    reported, on WS only, and "no row on POST, served elsewhere" rises by as many;
+    reported, on WS only, and "no row on POST, served elsewhere" rises by as many and
+    trips its ratchet;
   - no subscription receives anything: only WS cells are reported, each as `data`.
 
 ## Measuring a fix

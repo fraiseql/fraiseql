@@ -49,6 +49,10 @@ PER_SEED = 2000
 WORKERS = 8
 SHOWN = 25
 GATED = ["disagreements", "formats", "columns", "protocol"]
+# Metrics that may never rise above their baseline value; today each is ratcheted at 0.
+# A baseline without the value counts as 0, so a missing value cannot loosen the ratchet.
+RATCHETED = ["empty_on_post_served_elsewhere"]
+GATE_KEYS = [*GATED, "ratchets"]
 
 
 @dataclass
@@ -291,6 +295,17 @@ def gate(current: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "corpus_changed": True}
     reg = {k: sorted(set(current[k]) - set(base.get(k, []))) for k in GATED}
     prog = {k: sorted(set(base.get(k, [])) - set(current[k])) for k in GATED}
+    bm = base.get("metrics", {})
+    reg["ratchets"] = [
+        f"{m}: {current['metrics'][m]} > {bm.get(m, 0)}"
+        for m in RATCHETED
+        if current["metrics"][m] > bm.get(m, 0)
+    ]
+    prog["ratchets"] = [
+        f"{m}: {current['metrics'][m]} < {bm.get(m, 0)}"
+        for m in RATCHETED
+        if current["metrics"][m] < bm.get(m, 0)
+    ]
     ok = not any(reg.values()) and not any(prog.values())
     return {"ok": ok, "corpus_changed": False, "regressions": reg, "progress": prog}
 
@@ -312,14 +327,14 @@ def print_gate(g: dict[str, Any], failing: dict[str, Any]) -> None:
                 print(f"    {side:6} {r['status']} codes={r['codes']} data={data}")
         if len(reg["disagreements"]) > SHOWN:
             print(f"  ... and {len(reg['disagreements']) - SHOWN} more; --report writes every one")
-    for k in ("formats", "columns", "protocol"):
+    for k in ("formats", "columns", "protocol", "ratchets"):
         for line in reg[k]:
             print(f"REGRESSION: {k}: {line}")
     n = sum(len(v) for v in prog.values())
     if n:
         entries = "entry" if n == 1 else "entries"
         print(f"\nPROGRESS not yet recorded: {n} baseline {entries} no longer occur:")
-        for k in GATED:
+        for k in GATE_KEYS:
             for line in prog[k][:SHOWN]:
                 print(f"  {k}: {line}")
         print("Record it: rerun with --bless and commit baseline.json with the change.")
@@ -338,7 +353,7 @@ def _only(g: dict[str, Any], side: str, key: str, expected: list[str]) -> bool:
     return all(
         sorted(g[s][k]) == sorted(expected) if (s, k) == (side, key) else not g[s][k]
         for s in ("regressions", "progress")
-        for k in GATED
+        for k in GATE_KEYS
     )
 
 
@@ -440,6 +455,29 @@ def _selftest_sites(checks: Checks, current: dict[str, Any], base: dict[str, Any
             f"{k}: a baseline entry that no longer occurs is unrecorded progress",
             _only(g, "progress", k, [fake]),
         )
+    for m in RATCHETED:
+        value = current["metrics"][m]
+        g = gate(current, {**base, "metrics": {**base["metrics"], m: value - 1}})
+        _check(
+            checks,
+            f"{m}: rising above the baseline is a regression",
+            _only(g, "regressions", "ratchets", [f"{m}: {value} > {value - 1}"]),
+        )
+        g = gate(current, {**base, "metrics": {**base["metrics"], m: value + 1}})
+        _check(
+            checks,
+            f"{m}: falling below the baseline is unrecorded progress",
+            _only(g, "progress", "ratchets", [f"{m}: {value} < {value + 1}"]),
+        )
+        missing = {**base, "metrics": {k: v for k, v in base["metrics"].items() if k != m}}
+        g = gate({**current, "metrics": {**current["metrics"], m: value + 1}}, missing)
+        _check(
+            checks,
+            f"{m}: a baseline without the value ratchets at 0",
+            value + 1 > 0
+            and "ratchets" in g.get("regressions", {})
+            and g["regressions"]["ratchets"] == [f"{m}: {value + 1} > 0"],
+        )
     other = {**base, "corpus": {**base["corpus"], "seeds": [*base["corpus"]["seeds"], 9]}}
     _check(checks, "a changed corpus fails", gate(current, other)["corpus_changed"])
 
@@ -466,6 +504,9 @@ def _changed(
     moved = [] if g["corpus_changed"] else g["progress"]["disagreements"]
     reg_fps = {k.split(" ")[0] for k in regs}
     others = [k for k in GATED if k != "disagreements"]
+    ratchets = (
+        {} if g["corpus_changed"] else {s: g[s]["ratchets"] for s in ("regressions", "progress")}
+    )
     return {
         "regs": regs,
         "columns": {k.split(" ")[1] for k in regs},
@@ -481,6 +522,7 @@ def _changed(
         if not g["corpus_changed"]
         else "corpus changed",
         "metrics": m["metrics"],
+        "ratchets": ratchets,
     }
 
 
@@ -519,6 +561,7 @@ def _selftest_ws(checks: Checks, args: argparse.Namespace, base: dict[str, Any])
         and r["columns"] == {"WS"}
         and len(r["regs"]) == cells
         and rise == cells
+        and r["ratchets"]["regressions"] == [f"{key}: {cells} > 0"]
         and r["quiet"],
         f"{cells} injected, {len(r['regs'])} regression(s) on {sorted(r['columns'])}, "
         f"no row on POST +{rise}",
