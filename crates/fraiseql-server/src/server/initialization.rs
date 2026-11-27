@@ -252,7 +252,9 @@ pub(super) fn redis_requirement(
     raw: Option<&str>,
     backends: &SharedStateBackends,
 ) -> crate::Result<()> {
-    if !super::env_bool::env_bool("FRAISEQL_REQUIRE_REDIS", raw, false)? {
+    if !fraiseql_guard::deployment::env_bool("FRAISEQL_REQUIRE_REDIS", raw, false)
+        .map_err(ServerError::ConfigError)?
+    {
         return Ok(());
     }
     let violations = backends.per_process_subsystems();

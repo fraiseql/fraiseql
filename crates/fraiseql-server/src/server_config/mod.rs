@@ -1300,7 +1300,8 @@ pub struct ServerConfig {
 /// overridable by environment variables (env > TOML > default) so production can
 /// tune without recompiling:
 ///
-/// - `FRAISEQL_SOURCES_ENABLED` — global on/off (`false`/`0`/`no`/`off` disables).
+/// - `FRAISEQL_SOURCES_ENABLED` — global on/off, a boolean (`true`/`false`, `1`/`0`, `yes`/`no`,
+///   `on`/`off`); any other value refuses boot.
 /// - `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` — comma-separated env-var allowlist (#840).
 #[cfg(feature = "sources")]
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]

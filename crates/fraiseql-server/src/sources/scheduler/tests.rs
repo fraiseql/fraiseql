@@ -98,14 +98,14 @@ fn enabled_resolves_env_over_config() {
     };
 
     // No env → the config value.
-    assert!(sources_enabled_from(&on, |_| None));
-    assert!(!sources_enabled_from(&off, |_| None));
+    assert!(sources_enabled_from(&on, |_| None).unwrap());
+    assert!(!sources_enabled_from(&off, |_| None).unwrap());
 
     // Env overrides the config, either way.
-    assert!(!sources_enabled_from(&on, |_| Some("false".to_string())));
-    assert!(!sources_enabled_from(&on, |_| Some("OFF".to_string())));
-    assert!(sources_enabled_from(&off, |_| Some("true".to_string())));
-    assert!(sources_enabled_from(&off, |_| Some("1".to_string())));
+    assert!(!sources_enabled_from(&on, |_| Some("false".to_string())).unwrap());
+    assert!(!sources_enabled_from(&on, |_| Some("OFF".to_string())).unwrap());
+    assert!(sources_enabled_from(&off, |_| Some("true".to_string())).unwrap());
+    assert!(sources_enabled_from(&off, |_| Some("1".to_string())).unwrap());
 }
 
 /// A connector calls out under the `[egress]` list functions share, and nothing else:

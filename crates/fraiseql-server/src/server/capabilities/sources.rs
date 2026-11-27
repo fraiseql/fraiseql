@@ -64,7 +64,7 @@ impl Capability for Sources {
         };
         let sources = app_state.executor().schema().sources.clone();
         let sources_config = server.config.sources.clone().unwrap_or_default();
-        if !crate::sources::sources_enabled(&sources_config) {
+        if !crate::sources::sources_enabled(&sources_config)? {
             info!(
                 count = sources.len(),
                 "source scheduler disabled by config — sources not started"

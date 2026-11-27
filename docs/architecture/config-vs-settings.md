@@ -310,11 +310,11 @@ runtime override is:
 |----------|-----------|
 | `FRAISEQL_MAX_PAGE_SIZE` | The compiled page-size ceiling (#421); a positive integer, anything else refuses boot |
 | `FRAISEQL_MAX_OFFSET` | The compiled offset ceiling, `[validation] max_offset` (#1306); a positive integer, anything else refuses boot |
-| `FRAISEQL_CHANGELOG_ENABLED` | The compiled change-log toggle (composes AND with the compiled value) |
+| `FRAISEQL_CHANGELOG_ENABLED` | The compiled `[changelog] write_enabled`, which it replaces when set, in either direction; a boolean (`true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`), anything else refuses boot |
 | `FRAISEQL_FUNCTIONS_MODULE_DIR` | The compiled `[functions] module_dir`, where function modules load from (#1715) |
 | `FRAISEQL_FUNCTIONS_SHARED_DIR` | The compiled `[functions] shared_dir`, where shared modules load from (#1651) |
 | `FRAISEQL_FUNCTIONS_DLQ_STORE` | The compiled `[functions] dlq_store` backend; `memory` or `postgres`, anything else refuses boot |
-| `FRAISEQL_SOURCES_ENABLED` | Whether the source scheduler runs at all |
+| `FRAISEQL_SOURCES_ENABLED` | `[sources] enabled`, whether the source scheduler runs at all; a boolean in the same grammar, anything else refuses boot |
 | `FRAISEQL_EGRESS_ALLOWED_DOMAINS` | `[egress] allowed_domains`, the hosts functions and source connectors may call |
 | `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` | The sources env-var allowlist |
 

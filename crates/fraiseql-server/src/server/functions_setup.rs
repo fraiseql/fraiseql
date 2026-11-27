@@ -53,7 +53,7 @@ impl Server {
     /// `functions` section to load from (fail-loud: code declared to run that never
     /// can is a misconfiguration).
     pub(super) async fn prepare_functions_runtime(&mut self) -> Result<(), ServerError> {
-        let connectors = self.scheduled_source_connectors();
+        let connectors = self.scheduled_source_connectors()?;
         let Some(functions_config) = self.functions_config.take() else {
             // No `functions` section, so no `module_dir` to load a connector from: an
             // enabled source would never run (#1399).
@@ -142,25 +142,26 @@ impl Server {
     /// loaded with the declared functions, so a connector that cannot load refuses
     /// the boot rather than leaving its source silently unscheduled (#1399).
     #[cfg(feature = "sources")]
-    fn scheduled_source_connectors(&self) -> Vec<(String, String)> {
+    fn scheduled_source_connectors(&self) -> Result<Vec<(String, String)>, ServerError> {
         let config = self.config.sources.clone().unwrap_or_default();
-        if !crate::sources::sources_enabled(&config) {
-            return Vec::new();
+        if !crate::sources::sources_enabled(&config)? {
+            return Ok(Vec::new());
         }
-        self.executor
+        Ok(self
+            .executor
             .schema()
             .sources
             .iter()
             .filter(|source| source.enabled)
             .map(|source| (source.name.clone(), source.function.clone()))
-            .collect()
+            .collect())
     }
 
     /// Without the source scheduler compiled in, nothing is scheduled (a schema that
     /// declares sources is refused at load, as a feature-gated section).
     #[cfg(not(feature = "sources"))]
-    const fn scheduled_source_connectors(&self) -> Vec<(String, String)> {
-        Vec::new()
+    const fn scheduled_source_connectors(&self) -> Result<Vec<(String, String)>, ServerError> {
+        Ok(Vec::new())
     }
 
     /// Install the function seams on the executor: the `before:mutation` enforcement

@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`FRAISEQL_CHANGELOG_ENABLED` and `FRAISEQL_SOURCES_ENABLED` are booleans in the
+  grammar the server's flags use (#1777).** Each turned its switch on for any value but
+  `false`, `0`, `no` or `off`, so `f`, `n` and typos left the change-log outbox or the
+  source scheduler running. `f` and `n` now turn them off too, and a value that is
+  neither true nor false (`disabled`, say) refuses boot naming the variable. The grammar
+  (`true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`, `t`/`f`, `y`/`n`) is the one
+  `FRAISEQL_REQUIRE_REDIS` already takes, now shared from `fraiseql-guard`.
+
 - **Three environment overrides refuse a value they used to reinterpret or drop
   (#1777).**
   - `FRAISEQL_MAX_PAGE_SIZE` and `FRAISEQL_MAX_OFFSET` take the values their

@@ -24,20 +24,23 @@ use crate::{
 };
 
 /// Whether the source scheduler runs: `FRAISEQL_SOURCES_ENABLED` overrides the
-/// `[sources] enabled` config (env > TOML > default `true`). Any of
-/// `false`/`0`/`no`/`off` (case-insensitive) disables it.
-#[must_use]
-pub fn sources_enabled(config: &SourcesConfig) -> bool {
-    sources_enabled_from(config, |key| std::env::var(key).ok())
+/// `[sources] enabled` config (env > TOML > default `true`). It is a boolean in
+/// [`fraiseql_guard::deployment::boolish`]'s grammar.
+///
+/// # Errors
+///
+/// [`ServerError::ConfigError`] naming the variable when it is set to a value that is
+/// neither true nor false.
+pub fn sources_enabled(config: &SourcesConfig) -> crate::Result<bool> {
+    sources_enabled_from(config, |key| std::env::var(key).ok()).map_err(ServerError::ConfigError)
 }
 
-fn sources_enabled_from(config: &SourcesConfig, get: impl Fn(&str) -> Option<String>) -> bool {
-    match get("FRAISEQL_SOURCES_ENABLED") {
-        Some(value) => {
-            !matches!(value.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "off")
-        },
-        None => config.enabled,
-    }
+fn sources_enabled_from(
+    config: &SourcesConfig,
+    get: impl Fn(&str) -> Option<String>,
+) -> Result<bool, String> {
+    let var = "FRAISEQL_SOURCES_ENABLED";
+    fraiseql_guard::deployment::env_bool(var, get(var).as_deref(), config.enabled)
 }
 
 /// The host config a source connector runs on.
@@ -197,3 +200,7 @@ pub fn build_source_pollers(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "scheduler/sources_enabled_tests.rs"]
+mod sources_enabled_tests;

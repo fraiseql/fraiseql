@@ -183,5 +183,40 @@ pub fn env_opt_in(var: &str) -> bool {
     std::env::var(var).is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
+/// A boolean environment value, in clap's `BoolishValueParser` grammar.
+///
+/// It is the grammar the server's flags read their variables in, so one spelling means
+/// the same thing for every boolean variable: `Some(true)` for `y`, `yes`, `t`, `true`,
+/// `on` or `1`, `Some(false)` for `n`, `no`, `f`, `false`, `off` or `0` (ASCII
+/// case-insensitive, surrounding whitespace ignored), `None` for anything else.
+///
+/// [`env_opt_in`] stays stricter: an escape hatch is requested only by `1` or `true`.
+#[must_use]
+pub fn boolish(raw: &str) -> Option<bool> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "y" | "yes" | "t" | "true" | "on" | "1" => Some(true),
+        "n" | "no" | "f" | "false" | "off" | "0" => Some(false),
+        _ => None,
+    }
+}
+
+/// The boolean `var` holds (`raw`, its value when set), or `default` when it is unset.
+///
+/// # Errors
+///
+/// Names `var` when its value is neither true nor false in [`boolish`]'s grammar.
+pub fn env_bool(var: &str, raw: Option<&str>, default: bool) -> Result<bool, String> {
+    raw.map_or(Ok(default), |raw| {
+        boolish(raw).ok_or_else(|| {
+            format!(
+                "{var} = {raw:?} is not a boolean. Use true or false (also 1/0, yes/no, on/off)."
+            )
+        })
+    })
+}
+
+#[cfg(test)]
+mod boolean_tests;
+
 #[cfg(test)]
 mod tests;

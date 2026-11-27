@@ -380,8 +380,8 @@ pub struct RuntimeConfig {
     /// composes as a logical AND on top of this: a row is written only when the
     /// global switch is on **and** the mutation is not individually opted out.
     ///
-    /// Sourced from `[changelog] enabled` in `fraiseql.toml`, overridable at
-    /// runtime by `FRAISEQL_CHANGELOG_ENABLED`.
+    /// Sourced from `[changelog] write_enabled` in `fraiseql.toml`, which
+    /// `FRAISEQL_CHANGELOG_ENABLED` (a boolean) replaces when set.
     pub changelog_enabled: bool,
 
     /// Validate-bind-without-commit mode for mutations (default `false`).
@@ -773,14 +773,15 @@ impl RuntimeConfig {
     /// 3. **Page-size and offset ceilings (#421, #1306)** — `FRAISEQL_MAX_PAGE_SIZE` and
     ///    `FRAISEQL_MAX_OFFSET` override the compiled `[validation]` keys, and take the same
     ///    values: a positive integer.
-    /// 4. **Change-log outbox toggle** — `FRAISEQL_CHANGELOG_ENABLED` overrides the compiled
-    ///    `[changelog] write_enabled` (default `true`).
+    /// 4. **Change-log outbox toggle** — `FRAISEQL_CHANGELOG_ENABLED`, a boolean, replaces the
+    ///    compiled `[changelog] write_enabled` (default `true`).
     ///
     /// # Errors
     ///
     /// Returns the validation message when the compiled schema was produced by
-    /// a different fraiseql build (#1304), or when `FRAISEQL_MAX_PAGE_SIZE` or
-    /// `FRAISEQL_MAX_OFFSET` is set but is not a positive integer.
+    /// a different fraiseql build (#1304), when `FRAISEQL_MAX_PAGE_SIZE` or
+    /// `FRAISEQL_MAX_OFFSET` is set but is not a positive integer, or when
+    /// `FRAISEQL_CHANGELOG_ENABLED` is set but is not a boolean.
     pub fn from_compiled_schema(schema: &crate::schema::CompiledSchema) -> Result<Self, String> {
         Self::default().with_compiled_schema(schema)
     }
@@ -798,8 +799,9 @@ impl RuntimeConfig {
     /// # Errors
     ///
     /// Returns the validation message when the compiled schema was produced by
-    /// a different fraiseql build (#1304), or when `FRAISEQL_MAX_PAGE_SIZE` or
-    /// `FRAISEQL_MAX_OFFSET` is set but is not a positive integer.
+    /// a different fraiseql build (#1304), when `FRAISEQL_MAX_PAGE_SIZE` or
+    /// `FRAISEQL_MAX_OFFSET` is set but is not a positive integer, or when
+    /// `FRAISEQL_CHANGELOG_ENABLED` is set but is not a boolean.
     pub fn with_compiled_schema(
         self,
         schema: &crate::schema::CompiledSchema,
@@ -848,12 +850,10 @@ impl RuntimeConfig {
 
         // Change-Spine outbox write toggle (default on): FRAISEQL_CHANGELOG_ENABLED
         // overrides the compiled [changelog] write_enabled.
-        let changelog_enabled = get_env("FRAISEQL_CHANGELOG_ENABLED")
-            .map(|v| {
-                !matches!(v.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "off")
-            })
-            .or_else(|| schema.changelog.as_ref().map(|c| c.write_enabled))
-            .unwrap_or(true);
+        let changelog_enabled = changelog_precedence(
+            get_env("FRAISEQL_CHANGELOG_ENABLED").as_deref(),
+            schema.changelog.as_ref().map(|c| c.write_enabled),
+        )?;
         if !changelog_enabled {
             tracing::info!(
                 "Change-log outbox write disabled (FRAISEQL_CHANGELOG_ENABLED / [changelog] write_enabled)"
@@ -994,6 +994,17 @@ pub fn page_size_precedence(
     }
 }
 
+/// Whether the change-log outbox is written: `FRAISEQL_CHANGELOG_ENABLED` when set (a
+/// boolean in [`fraiseql_guard::deployment::boolish`]'s grammar), else the compiled
+/// `[changelog] write_enabled`, else on.
+fn changelog_precedence(raw: Option<&str>, compiled: Option<bool>) -> Result<bool, String> {
+    fraiseql_guard::deployment::env_bool(
+        "FRAISEQL_CHANGELOG_ENABLED",
+        raw,
+        compiled.unwrap_or(true),
+    )
+}
+
 /// A ceiling from the environment: a positive integer, as its `[validation]` key takes.
 fn positive_ceiling(var: &str, key: &str, raw: &str) -> Result<u32, String> {
     match raw.trim().parse::<u32>() {
@@ -1095,6 +1106,10 @@ mod tests;
 #[cfg(test)]
 #[path = "env_ceiling_tests.rs"]
 mod env_ceiling_tests;
+
+#[cfg(test)]
+#[path = "changelog_env_tests.rs"]
+mod changelog_env_tests;
 
 #[cfg(test)]
 mod suggestions_tests;

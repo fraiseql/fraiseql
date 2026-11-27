@@ -55,7 +55,8 @@ fn a_value_that_is_neither_true_nor_false_refuses_boot_naming_the_variable() {
     }
 }
 
-/// The grammar is clap's `BoolishValueParser`, the one the server's flags use.
+/// The grammar, `fraiseql_guard::deployment::boolish`, is clap's `BoolishValueParser`, the
+/// one the server's flags use: pinned here, where clap is a dependency.
 #[cfg(feature = "cli")]
 #[test]
 fn the_grammar_is_clap_boolish() {
@@ -65,7 +66,7 @@ fn the_grammar_is_clap_boolish() {
     let parser = clap::builder::BoolishValueParser::new();
     for raw in TRUE.iter().chain(FALSE.iter()).chain(["", "enabled", "2"].iter()) {
         let clap = parser.parse_ref(&command, None, std::ffi::OsStr::new(raw.trim())).ok();
-        let ours = super::env_bool::boolish(raw);
+        let ours = fraiseql_guard::deployment::boolish(raw);
         assert_eq!(ours, clap, "{raw:?}");
     }
 }
