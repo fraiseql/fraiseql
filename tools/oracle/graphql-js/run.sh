@@ -53,16 +53,19 @@ fi
 node lib/db.js wait "$admin_url"
 db_url="$(node lib/db.js create "$admin_url" "$db_name")"
 
-# Three servers over one database: the fixture; the fixture with a low complexity
-# ceiling; and the fixture with trusted documents in strict mode (lib/conformance.js
-# probes the last two).
+# Four servers over one database: the fixture; the fixture with a low complexity
+# ceiling; the fixture with trusted documents in strict mode; and the fixture serving
+# the subscription in fixture/subscriptions.json. lib/conformance.js probes the last
+# three. The subscription stays off the main server, so the differential compares a
+# schema the reference SDL describes in full.
 sed 's/^max_query_complexity = .*/max_query_complexity = 5/' fixture/fraiseql.toml >"$work/limits.toml"
 { cat fixture/fraiseql.toml; printf '\n[security.trusted_documents]\nenabled = true\nmode = "strict"\nmanifest_path = "%s"\n' "$here/fixture/trusted-documents.json"; } >"$work/trusted.toml"
+node -e 'const fs=require("fs");const s=JSON.parse(fs.readFileSync("fixture/schema.json"));s.subscriptions=JSON.parse(fs.readFileSync("fixture/subscriptions.json"));fs.writeFileSync(process.argv[1],JSON.stringify(s))' "$work/subs.schema.json"
 
 started_url=""
-start_server() { # name toml: starts it, sets started_url and appends the pid to pids
-  local name=$1 toml=$2 port
-  "$cli" compile "$toml" --types fixture/schema.json -o "$work/$name.compiled.json" >"$work/$name.compile.log" 2>&1 \
+start_server() { # name toml [types]: starts it, sets started_url and appends the pid to pids
+  local name=$1 toml=$2 types=${3:-fixture/schema.json} port
+  "$cli" compile "$toml" --types "$types" -o "$work/$name.compiled.json" >"$work/$name.compile.log" 2>&1 \
     || { cat "$work/$name.compile.log" >&2; return 2; }
   port="$(free_port)"
   FRAISEQL_INTROSPECTION_ENABLED=true FRAISEQL_INTROSPECTION_REQUIRE_AUTH=false FRAISEQL_ENV=development \
@@ -85,5 +88,7 @@ wait_server() { # name url pid: any HTTP answer means up (strict mode answers a 
 start_server main fixture/fraiseql.toml; main_url=$started_url; wait_server main "$main_url" "${pids[0]}"
 start_server limits "$work/limits.toml"; limits_url=$started_url; wait_server limits "$limits_url" "${pids[1]}"
 start_server trusted "$work/trusted.toml"; trusted_url=$started_url; wait_server trusted "$trusted_url" "${pids[2]}"
+start_server subs fixture/fraiseql.toml "$work/subs.schema.json"; subs_url=$started_url; wait_server subs "$subs_url" "${pids[3]}"
 
-node oracle.js --server "$main_url" --limits-server "$limits_url" --trusted-server "$trusted_url" --database "$db_url" "$@"
+node oracle.js --server "$main_url" --limits-server "$limits_url" --trusted-server "$trusted_url" \
+  --subscription-server "$subs_url" --database "$db_url" "$@"

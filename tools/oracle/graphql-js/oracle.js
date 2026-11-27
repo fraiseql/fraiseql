@@ -24,10 +24,11 @@
 // a reviewed diff.
 //
 // usage: node oracle.js --server <url> --limits-server <url> --trusted-server <url>
-//                       --database <postgres-url>
+//                       --subscription-server <url> --database <postgres-url>
 //                       [--baseline <path>] [--report <path>] [--bless] [--bless-sdl]
-// run.sh starts the three servers: the fixture, the fixture with a low complexity
-// ceiling, and the fixture with trusted documents in strict mode.
+// run.sh starts the four servers: the fixture, the fixture with a low complexity
+// ceiling, the fixture with trusted documents in strict mode, and the fixture serving
+// a subscription.
 // ORACLE_PRIVATE_MODULE may name a module, kept outside the repository, exporting
 // `{ cases, mutations }`: extra targeted cases, and replacements for fuzz mutation
 // slots by name. Such a run is measured against its own --baseline.
@@ -66,6 +67,7 @@ const { values: opt } = parseArgs({
     server: { type: "string" },
     "limits-server": { type: "string" },
     "trusted-server": { type: "string" },
+    "subscription-server": { type: "string" },
     database: { type: "string" },
     baseline: { type: "string", default: path.join(here, "baseline.json") },
     report: { type: "string" },
@@ -431,6 +433,14 @@ async function selftest(servers, database, priv, base) {
     );
   }
 
+  // The subscription control probe can fail: against a server serving no subscription,
+  // the shape inside the subset is refused, and the probe reports it.
+  {
+    const findings = await checkRestrictions(readRestrictions(), { ...servers, subs: servers.main });
+    const control = findings.filter((l) => l.startsWith("restriction subscription-subset#0: a shape inside the subset is refused"));
+    check("a refused subscription inside the subset is reported", control.length === 1, `${control.length} control finding(s)`);
+  }
+
   const failed = checks.filter((ok) => !ok).length;
   console.log(failed ? `\nSELFTEST FAIL: ${failed} of ${checks.length} checks` : `\nSELFTEST OK: ${checks.length} checks`);
   return failed ? 1 : 0;
@@ -440,8 +450,8 @@ async function main() {
   if (!opt.server) throw new Error("--server is required");
   if (opt["bless-sdl"]) return blessSdl(opt.server);
   if (!opt.database) throw new Error("--database is required");
-  for (const k of ["limits-server", "trusted-server"]) if (!opt[k]) throw new Error(`--${k} is required`);
-  const servers = { main: opt.server, limits: opt["limits-server"], trusted: opt["trusted-server"] };
+  for (const k of ["limits-server", "trusted-server", "subscription-server"]) if (!opt[k]) throw new Error(`--${k} is required`);
+  const servers = { main: opt.server, limits: opt["limits-server"], trusted: opt["trusted-server"], subs: opt["subscription-server"] };
   const priv = loadPrivate();
   if (opt.selftest) return selftest(servers, opt.database, priv, readBaseline(opt.baseline));
 

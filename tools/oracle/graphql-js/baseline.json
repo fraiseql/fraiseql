@@ -19,7 +19,7 @@
   "introspection_diff_lines": 21,
   "audit_warn": 6,
   "audit_error": 0,
-  "restriction_findings": 10
+  "restriction_findings": 12
  },
  "disagreements": [
   "000926313f946e7d err-locations",
@@ -4759,7 +4759,9 @@
   "restriction non-negative-pagination#0: not refused with ARGUMENT_OUT_OF_RANGE (HTTP 200, refused, codes code:VALIDATION_ERROR)",
   "restriction non-negative-pagination#1: not refused with ARGUMENT_OUT_OF_RANGE (HTTP 200, refused, codes code:VALIDATION_ERROR)",
   "restriction page-size-cap#0: not refused with LIMIT_EXCEEDED (HTTP 200, refused, codes code:VALIDATION_ERROR)",
-  "restriction subscription-subset: unprobed",
+  "restriction subscription-subset#2: not refused with UNSUPPORTED_FEATURE (HTTP 200, refused, codes code:VALIDATION_ERROR)",
+  "restriction subscription-subset#3 (get): not refused with UNSUPPORTED_FEATURE (HTTP 200, refused, codes code:VALIDATION_ERROR)",
+  "restriction subscription-subset#4 (sse): not refused with UNSUPPORTED_FEATURE (HTTP 200, refused, codes code:VALIDATION_ERROR)",
   "restriction trusted-documents#0: not refused with FORBIDDEN_QUERY|DOCUMENT_NOT_FOUND (HTTP 400, refused, codes code:FORBIDDEN_QUERY)",
   "restriction trusted-documents#1: not refused with FORBIDDEN_QUERY|DOCUMENT_NOT_FOUND (HTTP 400, refused, codes code:DOCUMENT_NOT_FOUND)"
  ]

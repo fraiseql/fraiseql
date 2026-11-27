@@ -9,6 +9,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const WebSocket = require("ws");
 const { send } = require("./compare.js");
 
 const DOC = path.join(__dirname, "..", "..", "..", "..", "docs", "graphql-conformance.md");
@@ -44,10 +45,17 @@ function documentedRefusal(r, allowed) {
 
 const nest = (n) => `${"... on Post { ".repeat(n)}id${" }".repeat(n)}`;
 
+const SUBSCRIBE = "subscription { postChanged { id title } }";
+
 /**
  * Probes by restriction id. `server` picks the instance run.sh starts for it: `main`
- * (the fixture), `limits` (a low complexity ceiling) or `trusted` (trusted documents in
- * strict mode). `raw` sends a body verbatim.
+ * (the fixture), `limits` (a low complexity ceiling), `trusted` (trusted documents in
+ * strict mode) or `subs` (the fixture serving the `postChanged` subscription).
+ *
+ * A probe sends `body` over POST by default; `raw` sends a body verbatim, `via` picks
+ * another transport (`get`, `sse`, `ws`). `code` narrows the row's codes to the one this
+ * probe must carry. `accepted: true` makes it a control: it must NOT be refused, so a
+ * server refusing every shape cannot pass the row.
  */
 const PROBES = {
   "depth-limit": [{ server: "main", body: { query: `{ posts(limit: 1) { ${nest(31)} } }` } }],
@@ -67,9 +75,13 @@ const PROBES = {
     { server: "trusted", body: { query: "{ __typename }" } },
     { server: "trusted", body: { documentId: "sha256:0000000000000000000000000000000000000000000000000000000000000000" } },
   ],
-  // The fixture serves no subscription yet, so this entry has no probe: the oracle
-  // reports it as unprobed rather than passing it.
-  "subscription-subset": [],
+  "subscription-subset": [
+    { server: "subs", via: "ws", accepted: true, body: { query: SUBSCRIBE } },
+    { server: "subs", via: "ws", code: "SUBSCRIPTION_REFUSED", body: { query: "subscription { postChanged { id body } }" } },
+    { server: "subs", code: "UNSUPPORTED_FEATURE", body: { query: SUBSCRIBE } },
+    { server: "subs", via: "get", code: "UNSUPPORTED_FEATURE", body: { query: SUBSCRIBE } },
+    { server: "subs", via: "sse", code: "UNSUPPORTED_FEATURE", body: { query: SUBSCRIBE } },
+  ],
 };
 
 async function post(url, p) {
@@ -87,6 +99,86 @@ async function post(url, p) {
   }
   return { status: r.status, body: Array.isArray(body) ? { __array: true } : body };
 }
+
+const parsed = (status, text) => {
+  try {
+    const body = JSON.parse(text);
+    return { status, body: Array.isArray(body) ? { __array: true } : body };
+  } catch {
+    return { status, body: { __raw: text.slice(0, 200) } };
+  }
+};
+
+async function get(url, p) {
+  const r = await fetch(`${url}?${new URLSearchParams({ query: p.body.query })}`, {
+    headers: { accept: "application/graphql-response+json, application/json" },
+  });
+  return parsed(r.status, await r.text());
+}
+
+/** POST asking for an event stream; reads for up to 2s and keeps the first event's payload. */
+async function sse(url, p) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 2000);
+  let status = 0;
+  let text = "";
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "text/event-stream" },
+      body: JSON.stringify(p.body),
+      signal: ac.signal,
+    });
+    status = r.status;
+    if (!(r.headers.get("content-type") || "").startsWith("text/event-stream")) return parsed(status, await r.text());
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    while (!/^data:.*\n/m.test(text)) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      text += dec.decode(value);
+    }
+    ac.abort();
+  } catch (e) {
+    if (e.name !== "AbortError") throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+  const data = /^data:(.*)$/m.exec(text);
+  return data ? parsed(status, data[1]) : { status, body: { __raw: "event stream with no event" } };
+}
+
+/**
+ * One `graphql-transport-ws` subscribe on the server's `/ws`. An error frame becomes
+ * `{ errors }`; a subscription still open after 1.5s, with no error, becomes `{ data }`.
+ */
+function ws(url, p) {
+  const wsUrl = url.replace(/^http/, "ws").replace(/\/graphql$/, "/ws");
+  return new Promise((resolve, reject) => {
+    const sock = new WebSocket(wsUrl, "graphql-transport-ws");
+    let done = false;
+    const finish = (r) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sock.terminate();
+      resolve(r);
+    };
+    const timer = setTimeout(() => finish({ status: 101, body: { data: { subscribed: true } } }), 1500);
+    sock.on("open", () => sock.send(JSON.stringify({ type: "connection_init" })));
+    sock.on("message", (raw) => {
+      const f = JSON.parse(raw.toString());
+      if (f.type === "ping") sock.send(JSON.stringify({ type: "pong" }));
+      else if (f.type === "connection_ack") sock.send(JSON.stringify({ id: "1", type: "subscribe", payload: p.body }));
+      else if (f.type === "error") finish({ status: 101, body: { errors: f.payload } });
+      else if (f.type === "complete") finish({ status: 101, body: { errors: [{ message: "completed without an event" }] } });
+    });
+    sock.on("close", (code, reason) => finish({ status: 101, body: { __raw: `socket closed ${code} ${reason}` } }));
+    sock.on("error", (e) => (done ? undefined : reject(e)));
+  });
+}
+
+const VIA = { get, sse, ws };
 
 /**
  * Runs every probe; returns one line per row that is not refused as documented.
@@ -107,16 +199,26 @@ async function checkRestrictions(rows, servers) {
       findings.push(`restriction ${row.id}: unprobed`);
       continue;
     }
-    const allowed = new Set(row.codes);
     for (const [i, p] of probes.entries()) {
       const url = servers[p.server];
       if (!url) throw new Error(`no ${p.server} server for restriction ${row.id}`);
-      const r = p.raw ? await post(url, p) : await send(url, p.body);
+      if (p.code && !row.codes.includes(p.code)) {
+        findings.push(`restriction ${row.id}#${i}: probe expects ${p.code}, which the row does not list`);
+        continue;
+      }
+      const allowed = new Set(p.code ? [p.code] : row.codes);
+      const r = p.raw ? await post(url, p) : p.via ? await VIA[p.via](url, p) : await send(url, p.body);
+      if (p.accepted) {
+        if (errorsOf(r).length || r.body.__raw !== undefined) {
+          findings.push(`restriction ${row.id}#${i}: a shape inside the subset is refused (${JSON.stringify(r.body).slice(0, 200)})`);
+        }
+        continue;
+      }
       if (!documentedRefusal(r, allowed)) {
         const seen = errorsOf(r).map((e) => (e && e.extensions && e.extensions.code) || (e && e.code ? `code:${e.code}` : "-"));
         const shape = r.body.__raw !== undefined ? "not a GraphQL response" : !errorsOf(r).length ? "answered, no errors" : hasData(r) ? "data with errors" : "refused";
         findings.push(
-          `restriction ${row.id}#${i}: not refused with ${row.codes.join("|")} (HTTP ${r.status}, ${shape}, codes ${seen.join(",") || "none"})`,
+          `restriction ${row.id}#${i}${p.via ? ` (${p.via})` : ""}: not refused with ${[...allowed].join("|")} (HTTP ${r.status}, ${shape}, codes ${seen.join(",") || "none"})`,
         );
       }
     }

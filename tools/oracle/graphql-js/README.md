@@ -19,7 +19,9 @@ regression is caught by executing documents, not by reading code.
   `error` results count.
 - **One probe per restriction** listed in [`docs/graphql-conformance.md`](../../../docs/graphql-conformance.md)
   (`lib/conformance.js`). Each probe must be refused with its row's `extensions.code`,
-  and a table row without a probe is a finding.
+  and a table row without a probe is a finding. Probes run over POST, GET, SSE and
+  WebSocket (`graphql-transport-ws`). A control probe sends a shape inside the subset
+  and must not be refused, so a server refusing everything cannot pass a row.
 
 The reference server (`lib/reference.js`) serves `fixture/schema.graphql`, the SDL that
 FraiseQL is expected to expose for `fixture/schema.json`. It resolves against the same
@@ -80,11 +82,14 @@ make oracle-graphql-js-selftest   # proves the gate goes red (below)
 tools/oracle/graphql-js/run.sh --report /tmp/oracle.json   # every disagreement, both responses
 ```
 
-`run.sh` starts three servers over one database, all built from the same binary:
+`run.sh` starts four servers over one database, all built from the same binary:
 
 - the fixture;
 - the fixture with a complexity ceiling of 5;
-- the fixture with trusted documents in strict mode.
+- the fixture with trusted documents in strict mode;
+- the fixture serving the subscription in `fixture/subscriptions.json`. It is kept off
+  the first server, so the differential compares a schema the reference SDL describes
+  in full.
 
 It reads the following:
 
@@ -115,6 +120,8 @@ baseline:
   probe findings must clear, and those refusals must count as documented.
 - The proxy moves every error code into `extensions.code`. Error-format divergences must
   fall, and an unlisted code must document nothing.
+- The subscription probes are pointed at a server serving no subscription. The control
+  probe must report the shape inside the subset as refused.
 
 ## Measuring a fix
 
