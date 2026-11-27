@@ -14,15 +14,15 @@
   "cells": 14720,
   "refused_on_post_served_elsewhere": 88,
   "empty_on_post_served_elsewhere": 0,
-  "undocumented_divergences": 579,
-  "documented_differences": 914,
+  "undocumented_divergences": 584,
+  "documented_differences": 909,
   "documented_by_row": {
    "flight-requires-auth": 463,
    "mcp-requires-auth": 171,
    "url-length-cap": 170,
    "rest-filter-cap": 24,
    "flight-ticket-cap": 0,
-   "mcp-field-omission": 86
+   "mcp-field-omission": 81
   },
   "error_format_cells": 8589,
   "pending_columns": 1,

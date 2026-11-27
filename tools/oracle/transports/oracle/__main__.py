@@ -579,8 +579,18 @@ def _selftest_documented(checks: Checks) -> None:
     post = Response(status="OK", data=[{"id": "1", "secret": None, "note": "n"}], has_data=True)
     _check(
         checks,
-        "MCP leaving out a field the caller may not read is documented",
+        "MCP leaving out a field POST refuses is documented",
         view(
+            "MCP",
+            "A-viewer",
+            Response(status="x", codes=["FORBIDDEN"]),
+            Response(status="OK", data=[{"id": "1", "note": "n"}], has_data=True),
+        ),
+    )
+    _check(
+        checks,
+        "MCP leaving out a field POST serves null is not",
+        not view(
             "MCP",
             "A-viewer",
             post,

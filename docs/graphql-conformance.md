@@ -192,7 +192,7 @@ a cell differs from POST in a way the table does not list.
 | `url-length-cap` | GET `/graphql`, REST | a request target longer than 65 534 bytes is refused with HTTP 414 |
 | `rest-filter-cap` | REST | a `filter` parameter longer than 4096 bytes is refused with HTTP 400 `BAD_REQUEST` |
 | `flight-ticket-cap` | Arrow Flight | a ticket larger than 256 KiB is refused with gRPC `INVALID_ARGUMENT` |
-| `mcp-field-omission` | MCP | a field the caller may not read is left out of the rows, where POST refuses the request or answers the field null |
+| `mcp-field-omission` | MCP | a field the caller may not read is left out of the rows, where POST refuses the request |
 
 ### flight-requires-auth
 
@@ -235,9 +235,9 @@ gRPC's 4 MiB message limit, gRPC itself refuses the call first, with `OUT_OF_RAN
 ### mcp-field-omission
 
 **Reason.** An MCP tool call names no selection. It returns the fields the caller may
-read. POST answers a selection that names a field the caller may not read as that
-field's `on_deny` says: it refuses the request (`reject`), or serves the field null
-(`mask`). MCP never names the field.
+read. POST refuses a selection that names a field the caller may not read; MCP never
+names one. This row covers refused fields only: a field POST serves null
+(`on_deny = "mask"`) must be served null on MCP too.
 
 **Boundary.** A caller without the field's scope gets rows without the field. A caller
 with the scope gets rows with it.

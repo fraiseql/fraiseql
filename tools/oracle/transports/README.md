@@ -204,8 +204,9 @@ gate goes red. It needs a server that matches the baseline.
   - each row's judge passes the row honoured, and fails when either side of the boundary
     moves;
   - a matcher documents only its own difference (MCP leaving out a field the caller may
-    read, or serving one it may not, is not documented; nor is a 414 on a short URL, or
-    Flight refusing an authenticated caller), and nothing once its row is removed.
+    read, or one POST serves null, or serving one it may not, is not documented; nor is
+    a 414 on a short URL, or Flight refusing an authenticated caller), and nothing once
+    its row is removed.
 - Probe cells: an unchanged server variant agrees with the main server, and one with
   introspection disabled does not. A variant whose edits did not apply fails here.
 - The ratchet fails in both directions and names the metric. A baseline without the

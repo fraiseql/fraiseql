@@ -95,16 +95,10 @@ def _unreadable(who: str) -> set[str]:
 
 
 def _omits_unreadable_only(c: CellView) -> bool:
-    """MCP served rows with no field the caller may not read, and that is the only
-    difference: POST refused the selection (`on_deny = "reject"`), or served the same
-    rows with those fields null (`on_deny = "mask"`)."""
-    hidden = _unreadable(c.req.who)
-    if c.got.cls != "OK" or c.got.keys & hidden:
-        return False
-    if c.ref.cls == "DENIED":
-        return True
-    omitted = [i.removeprefix("omitted:").split("+") for i in c.issues if i.startswith("omitted:")]
-    return c.ref.cls == "OK" and len(omitted) == len(c.issues) == 1 and set(omitted[0]) <= hidden
+    """POST refused the selection for a field the caller may not read; MCP served rows
+    carrying no such field. A field POST serves null (`on_deny = "mask"`) is not this
+    row: MCP leaving it out is a difference from POST, and stays undocumented."""
+    return c.ref.cls == "DENIED" and c.got.cls == "OK" and not (c.got.keys & _unreadable(c.req.who))
 
 
 def _target_length(c: CellView) -> int:
