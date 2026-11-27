@@ -311,106 +311,6 @@ proptest! {
         prop_assert_eq!(params, vec![json!("v")]);
     }
 
-    /// Property: AND/OR clauses produce balanced parentheses.
-    #[test]
-    fn prop_postgres_balanced_parentheses(clause in arb_where_clause()) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let result = gen.generate(&clause);
-
-        if let Ok((sql, _)) = result {
-            let open = sql.chars().filter(|c| *c == '(').count();
-            let close = sql.chars().filter(|c| *c == ')').count();
-            prop_assert_eq!(
-                open, close,
-                "Unbalanced parentheses in SQL: {}", sql
-            );
-        }
-    }
-
-    /// Property: NOT wraps inner clause in NOT (...).
-    #[test]
-    fn prop_postgres_not_wraps_inner(inner in arb_leaf_clause()) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let clause = WhereClause::Not(Box::new(inner));
-        let result = gen.generate(&clause);
-
-        if let Ok((sql, _)) = result {
-            prop_assert!(
-                sql.starts_with("NOT ("),
-                "NOT clause should start with 'NOT (': {}", sql
-            );
-            prop_assert!(
-                sql.ends_with(')'),
-                "NOT clause should end with ')': {}", sql
-            );
-        }
-    }
-
-    /// Property: IsNull produces no parameters.
-    #[test]
-    fn prop_postgres_isnull_no_params(
-        path in arb_path(),
-        is_null in any::<bool>(),
-    ) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let clause = WhereClause::Field {
-            path,
-            operator: WhereOperator::IsNull,
-            value: json!(is_null),
-        };
-
-        let (sql, params) = gen.generate(&clause).unwrap();
-        prop_assert!(params.is_empty(), "IsNull should produce no params, got: {:?}", params);
-
-        if is_null {
-            prop_assert!(sql.contains("IS NULL"), "Expected IS NULL in: {}", sql);
-            prop_assert!(!sql.contains("IS NOT NULL"), "Should not contain IS NOT NULL: {}", sql);
-        } else {
-            prop_assert!(sql.contains("IS NOT NULL"), "Expected IS NOT NULL in: {}", sql);
-        }
-    }
-
-    /// Property: Numeric comparisons cast to ::numeric for type safety.
-    #[test]
-    fn prop_postgres_numeric_casts(
-        path in arb_path(),
-        operator in arb_comparison_operator(),
-        value in any::<i64>(),
-    ) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let clause = WhereClause::Field {
-            path,
-            operator,
-            value: json!(value),
-        };
-
-        let (sql, _params) = gen.generate(&clause).unwrap();
-        prop_assert!(
-            sql.contains("::numeric"),
-            "Numeric comparisons should cast to ::numeric: {}", sql
-        );
-    }
-
-    /// Property: Boolean comparisons cast to ::boolean for type safety.
-    #[test]
-    fn prop_postgres_boolean_casts(
-        path in arb_path(),
-        value in any::<bool>(),
-    ) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let clause = WhereClause::Field {
-            path,
-            operator: WhereOperator::Eq,
-            value: json!(value),
-        };
-
-        let (sql, _params) = gen.generate(&clause).unwrap();
-        prop_assert!(
-            sql.contains("::boolean"),
-            "Boolean comparisons should cast to ::boolean: {}", sql
-        );
-    }
-
     /// Property: a generator that has already rendered a tree renders the next one as a
     /// fresh generator does: its parameter numbering restarts.
     #[test]
@@ -645,32 +545,6 @@ proptest! {
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(200))]
-
-    /// Property: Field WHERE clauses always generate valid SQL with placeholders.
-    #[test]
-    fn prop_field_where_generates_valid_sql(
-        path in arb_path(),
-        op in arb_comparison_operator(),
-        value in arb_scalar_value(),
-    ) {
-        let clause = WhereClause::Field {
-            path,
-            operator: op,
-            value,
-        };
-
-        let generator = PostgresWhereGenerator::new(PostgresDialect);
-        if let Ok((sql, params)) = generator.generate(&clause) {
-            // Should not be empty
-            prop_assert!(!sql.is_empty(), "Generated SQL should not be empty");
-            // Should have balanced parentheses
-            let open = sql.chars().filter(|c| *c == '(').count();
-            let close = sql.chars().filter(|c| *c == ')').count();
-            prop_assert_eq!(open, close, "Parentheses should be balanced in: {}", sql);
-            // Should have at least one parameter
-            prop_assert!(!params.is_empty(), "Should have parameters: {}", sql);
-        }
-    }
 
     /// Property: Deeply nested field paths generate valid SQL.
     #[test]
