@@ -19,6 +19,7 @@ agreement with the spec, transitively.
 | REST | `GET /rest/v1/<resource>` with `select`, `filter`, `sort`, `limit` and `offset` |
 | MCP | `tools/call` over streamable HTTP on `/mcp` |
 | FLIGHT | Arrow Flight `do_get` with a `GraphQLQuery` ticket; the request's headers travel as gRPC metadata |
+| WS | `subscription { orderCreated { … } }` over graphql-transport-ws on `/ws` (see [The WS column](#the-ws-column)) |
 | GRPC | pending: no cells until it is mounted |
 
 A request with no spelling on a transport has no cell there. GraphQL-only selections
@@ -50,12 +51,40 @@ selected field it left out is the issue `omitted:<fields>`: it is counted, not s
 |---|---|
 | Agreement with POST, over every compared cell (and per column) | 100% |
 | Refused on POST, served elsewhere: POST refuses, another transport returns rows | 0 |
+| No row on POST, served elsewhere: POST returns no row, another transport returns rows | 0 |
 | Undocumented divergences: every other disagreeing cell | 0 |
 | Cells with a code outside `extensions.code` | 0 |
 | Pending columns | 0 |
 
 With a baseline present, each metric line shows its change from the baseline, and
 whether that change is better or worse.
+
+## The WS column
+
+Subscriptions are graded on the rows the run writes, against what POST reads for the
+same row, principal and selection:
+
+1. one subscription per principal and selection (`oracle.ws.SELECTIONS`) opens, and is
+   acknowledged or refused;
+2. once all are open, each writer (`oracle.ws.WRITERS`, one per tenant) creates one row
+   through POST `createOrder`;
+3. the subscriptions collect events until each has one per row, or the wait ends;
+4. each (subscription, row) cell is compared with POST `order(id:)` for that principal
+   and selection.
+
+Every subscription is open before the first write, so every subscriber is graded on
+every row, whatever the timing.
+
+- A principal POST serves the row to must receive exactly one event with the same data.
+  A repeated delivery is a data difference.
+- A principal POST serves nothing must receive no event.
+- A refusal (the HTTP status of the upgrade, a close code or an error frame) is compared
+  by class, like any other cell.
+
+The column runs after the corpus, since the corpus reads the fixture. The rows it writes
+are deleted at the end, so a later run, or the self-test's next measurement, sees the
+fixture unchanged. Events come from the change log, so the server needs the `observers`
+feature, and the fixture enables `[observers]`.
 
 ## Connection handling
 
@@ -97,22 +126,25 @@ tools/oracle/transports/run.sh --report /tmp/transports.json   # every disagreei
 
 | Variable | Meaning |
 |---|---|
-| `FRAISEQL_CLI`, `FRAISEQL_SERVER` | The binaries under test. The server needs the features `cli,rest,grpc,mcp,arrow`. |
+| `FRAISEQL_CLI`, `FRAISEQL_SERVER` | The binaries under test. The server needs the features `cli,rest,grpc,mcp,arrow,observers`. |
 | `ORACLE_ADMIN_URL` | A PostgreSQL URL allowed to create databases. When unset, a throwaway container is started and removed on exit. |
-| `ORACLE_PRIVATE_MODULE` | A Python file, kept outside the repository, that may export `REQUESTS` and `PRINCIPALS`, and extend the generator's corpus with `ROOTS`, `ORDER_FIELDS`, `FILTERS`, `ORDER_GATED` and `HEADERS` (values for the `x-probe` header). It runs against its own `--baseline`. |
+| `ORACLE_PRIVATE_MODULE` | A Python file, kept outside the repository, that may export `REQUESTS` and `PRINCIPALS`, and extend the generator's corpus with `ROOTS`, `ORDER_FIELDS`, `FILTERS`, `ORDER_GATED`, `HEADERS` (values for the `x-probe` header) and `WS_SELECTIONS`. It runs against its own `--baseline`. |
 
 Exit codes: 0 means the run matches the baseline; 1 means the gate failed; 2 means the
 harness itself failed, and `run.sh` then prints the end of the server's log.
 
 ## The self-test
 
-`make oracle-transports-selftest` (`run.sh --selftest`, about three minutes) proves the
+`make oracle-transports-selftest` (`run.sh --selftest`, about four minutes) proves the
 gate goes red. It needs a server that matches the baseline.
 
 - Pure checks:
   - an unknown code keeps its own class;
   - a bodyless 401 is `UNAUTH` by its status;
   - a cell served where POST refused is a class divergence;
+  - a WS event for another row is not this row's event;
+  - a refused WS subscription answers its refusal, whatever it received;
+  - a WS row delivered twice differs from POST's one row;
   - an MCP cell that leaves out a selected field is counted.
 - Every list in the baseline is a gate site. A one-entry change to it fails the run in
   both directions and names that entry. The sites come from the baseline itself, not
@@ -122,6 +154,11 @@ gate goes red. It needs a server that matches the baseline.
   - REST serves rows where it refused: only REST cells are reported, and "refused on
     POST, served elsewhere" rises;
   - GET alters one value: only GET cells are reported, each as `data`.
+- The proxy cannot carry WebSockets, so `oracle.ws.run` takes a `tamper` hook for the
+  self-test only. It changes what the subscriptions received before they are graded:
+  - every live B-viewer subscription receives tenant A's row: exactly those cells are
+    reported, on WS only, and "no row on POST, served elsewhere" rises by as many;
+  - no subscription receives anything: only WS cells are reported, each as `data`.
 
 ## Measuring a fix
 

@@ -5,7 +5,7 @@
 #
 # Environment:
 #   FRAISEQL_CLI, FRAISEQL_SERVER  binaries under test. The server must be built with the
-#                                  features cli,rest,grpc,mcp,arrow (default:
+#                                  features cli,rest,grpc,mcp,arrow,observers (default:
 #                                  target/release/*).
 #   ORACLE_ADMIN_URL               a PostgreSQL URL with CREATE DATABASE rights. When
 #                                  unset, a throwaway PostgreSQL 18 container is started
@@ -37,6 +37,7 @@ work="$(mktemp -d)"
 container=""
 pids=()
 admin_url="${ORACLE_ADMIN_URL:-}"
+# shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
   set +e
   for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; done
@@ -84,7 +85,7 @@ done
 
 rc=0
 py -m oracle --http "http://127.0.0.1:$http_port" --flight "grpc://127.0.0.1:$flight_port" \
-  --issuer "$issuer" --key "$work/issuer.pem" "$@" || rc=$?
+  --issuer "$issuer" --key "$work/issuer.pem" --db "$db_url" "$@" || rc=$?
 if [[ $rc -eq 2 ]]; then
   echo "--- fraiseql-server log (last 6000 bytes) ---" >&2
   tail -c 6000 "$work/server.log" >&2

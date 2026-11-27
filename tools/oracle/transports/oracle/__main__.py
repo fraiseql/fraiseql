@@ -8,6 +8,7 @@ agreement with the spec, transitively.
 Metrics (README.md):
   - agreement: cells agreeing with POST, over all compared cells;
   - refused on POST, served elsewhere: POST refuses, another transport returns data;
+  - no row on POST, served elsewhere: POST returns no row, another transport returns one;
   - undocumented divergences: every other disagreeing cell;
   - error-format divergences: a code outside `extensions.code`, by column, code and place;
   - pending columns: a transport with no cells yet (gRPC until it is mounted).
@@ -35,6 +36,7 @@ from typing import Any
 import httpx
 
 from . import generate as gen
+from . import ws
 from .clients import Clients, Endpoints, Response
 from .compare import compare_cell, fingerprint, outcome
 from .issuer import load_key, mint
@@ -57,13 +59,14 @@ class Private:
     label: str
 
 
-EXTENSIONS = ("ROOTS", "ORDER_FIELDS", "FILTERS", "ORDER_GATED", "HEADERS")
+EXTENSIONS = ("ROOTS", "ORDER_FIELDS", "FILTERS", "ORDER_GATED", "HEADERS", "WS_SELECTIONS")
 
 
 def load_private() -> Private:
     """ORACLE_PRIVATE_MODULE, a Python file kept outside the repository, may export
     REQUESTS (extra requests, as dicts of Request fields) and PRINCIPALS, and extend the
-    generator's corpus with ROOTS, ORDER_FIELDS, FILTERS, ORDER_GATED and HEADERS."""
+    generator's corpus with ROOTS, ORDER_FIELDS, FILTERS, ORDER_GATED, HEADERS and
+    WS_SELECTIONS."""
     path = os.environ.get("ORACLE_PRIVATE_MODULE")
     if not path:
         return Private([], {}, gen.PUBLIC, label="public")
@@ -148,6 +151,25 @@ class Runner:
         return {col: calls[col]() for col in gen.applicable(req)}
 
 
+def _ws_column(
+    args: argparse.Namespace, http: str, tokens: dict[str, str | None], corpus: gen.Corpus
+) -> list[ws.Cell]:
+    """The WS column writes rows, so it runs after the corpus, which reads the fixture.
+    It talks to the server itself: the self-test's proxy does not carry WebSockets."""
+    direct = Clients(Endpoints(http, args.flight))
+    try:
+        return ws.run(
+            direct,
+            http,
+            tokens,
+            args.db,
+            selections=ws.SELECTIONS + corpus.ws_selections,
+            tamper=getattr(args, "ws_tamper", None),
+        )
+    finally:
+        direct.close()
+
+
 def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     priv = load_private()
     principals = {**gen.PRINCIPALS, **priv.principals}
@@ -165,42 +187,49 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     # probe must still reach the server itself.
     protocol_http = getattr(args, "protocol_http", None) or args.http
     protocol = [line for line in [early_refusal(protocol_http, expired)] if line]
+    ws_cells = _ws_column(args, protocol_http, runner.tokens, priv.corpus)
     retries = sum(c.retries_seen for c in runner.all_clients)
     for c in runner.all_clients:
         c.close()
 
-    per_col: dict[str, list[int]] = {c: [0, 0] for c in gen.COLUMNS}
+    graded: list[tuple[str, gen.Request, str, Response, Response]] = []
+    for req, res in zip(reqs, answers, strict=True):
+        fp = fingerprint(req)
+        graded += [(fp, req, col, res["POST"], resp) for col, resp in res.items()]
+    graded += [(ws.fingerprint(c), c.request, "WS", c.ref, c.got) for c in ws_cells]
+
+    per_col: dict[str, list[int]] = {c: [0, 0] for c in [*gen.COLUMNS, "WS"]}
     failing: dict[str, Any] = {}
     formats: set[str] = set()
     served_after_refusal = 0
+    served_after_empty = 0
     divergent = 0
     format_cells = 0
-    for req, res in zip(reqs, answers, strict=True):
-        fp = fingerprint(req)
-        ref = outcome(res["POST"])
-        for col, resp in res.items():
-            places = set(resp.code_at.split(",")) - {"", "extensions"}
-            if places:
-                format_cells += 1
-                for code in sorted(set(resp.codes) - {"-"}):
-                    formats.add(f"{col} {code} at {resp.code_at}")
-            if col == "POST":
-                continue
-            got = outcome(resp)
-            issues = compare_cell(req, col, ref, got)
-            per_col[col][1] += 1
-            if not issues:
-                per_col[col][0] += 1
-                continue
-            divergent += 1
-            if ref.cls != "OK" and got.rows:
-                served_after_refusal += 1
-            failing[f"{fp} {col} {','.join(issues)}"] = {
-                "request": req.canon() | {"name": req.name},
-                "column": col,
-                "POST": res["POST"].__dict__,
-                col: resp.__dict__,
-            }
+    for fp, req, col, post, resp in graded:
+        places = set(resp.code_at.split(",")) - {"", "extensions"}
+        if places:
+            format_cells += 1
+            for code in sorted(set(resp.codes) - {"-"}):
+                formats.add(f"{col} {code} at {resp.code_at}")
+        if col == "POST":
+            continue
+        ref, got = outcome(post), outcome(resp)
+        issues = compare_cell(req, col, ref, got)
+        per_col[col][1] += 1
+        if not issues:
+            per_col[col][0] += 1
+            continue
+        divergent += 1
+        if ref.cls != "OK" and got.rows:
+            served_after_refusal += 1
+        elif ref.cls == "OK" and not ref.rows and got.rows:
+            served_after_empty += 1
+        failing[f"{fp} {col} {','.join(issues)}"] = {
+            "request": req.canon() | {"name": req.name},
+            "column": col,
+            "POST": post.__dict__,
+            col: resp.__dict__,
+        }
     cells = sum(t for _, t in per_col.values())
     agree = sum(a for a, _ in per_col.values())
     columns = columns_state(args.http)
@@ -208,6 +237,7 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
         "agreement": agree,
         "cells": cells,
         "refused_on_post_served_elsewhere": served_after_refusal,
+        "empty_on_post_served_elsewhere": served_after_empty,
         "undocumented_divergences": divergent,
         "error_format_cells": format_cells,
         "pending_columns": sum("pending" in line for line in columns),
@@ -234,6 +264,7 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
 LINES = [
     ("agreement with POST", "agreement", "cells", +1),
     ("refused on POST, served elsewhere", "refused_on_post_served_elsewhere", None, -1),
+    ("no row on POST, served elsewhere", "empty_on_post_served_elsewhere", None, -1),
     ("undocumented divergences", "undocumented_divergences", None, -1),
     ("cells with a code outside extensions", "error_format_cells", None, -1),
     ("pending columns", "pending_columns", None, -1),
@@ -346,6 +377,31 @@ def _selftest_pure(checks: Checks) -> None:
         ",".join(served),
     )
     issues = compare_cell(req, "MCP", ref, mcp)
+    sub = ws.Subscription("A-viewer", ["id"], events=[{"data": {"orderCreated": {"id": "r2"}}}])
+    _check(
+        checks,
+        "a WS event for another row is not this row's event",
+        not ws.answer(sub, "r1").has_data,
+    )
+    closed = ws.Subscription(
+        "expired", ["id"], refusal=Response(status="ws", codes=["ws-close-4401"])
+    )
+    closed.events.append(sub.events[0])
+    _check(
+        checks,
+        "a refused WS subscription answers its refusal, whatever it received",
+        outcome(ws.answer(closed, "r2")).cls == "UNAUTH",
+    )
+    sub.events.append(sub.events[0])
+    twice = outcome(ws.answer(sub, "r2"))
+    _check(
+        checks,
+        "a WS row delivered twice differs from POST's one row",
+        compare_cell(
+            req, "WS", outcome(Response(status="200", data={"id": "r2"}, has_data=True)), twice
+        )
+        == ["data"],
+    )
     _check(
         checks,
         "an MCP cell leaving a selected field out is counted",
@@ -394,18 +450,23 @@ def _proxied(
     """The run through a proxy rewriting `column`'s responses: which cells changed, and how."""
     proxy = Proxy(args.http, rewrite)
     try:
-        m, _ = measure(
-            argparse.Namespace(**{**vars(args), "http": proxy.url, "protocol_http": args.http})
-        )
+        changed = _changed(args, base, column, http=proxy.url, protocol_http=args.http)
     finally:
         proxy.close()
+    return {**changed, "rewrites": proxy.rewrites}
+
+
+def _changed(
+    args: argparse.Namespace, base: dict[str, Any], column: str, **overrides: Any
+) -> dict[str, Any]:
+    """A run with `overrides` on the arguments: which cells changed, and how."""
+    m, _ = measure(argparse.Namespace(**{**vars(args), **overrides}))
     g = gate(m, base)
     regs = [] if g["corpus_changed"] else g["regressions"]["disagreements"]
     moved = [] if g["corpus_changed"] else g["progress"]["disagreements"]
     reg_fps = {k.split(" ")[0] for k in regs}
     others = [k for k in GATED if k != "disagreements"]
     return {
-        "rewrites": proxy.rewrites,
         "regs": regs,
         "columns": {k.split(" ")[1] for k in regs},
         "issues": {k.split(" ", 2)[2] for k in regs},
@@ -421,6 +482,54 @@ def _proxied(
         else "corpus changed",
         "metrics": m["metrics"],
     }
+
+
+class _Fabricate:
+    """Every live B-viewer subscription receives tenant A's row, which POST does not serve
+    it. `injected` counts them: a subscription refused as POST refuses gets nothing."""
+
+    def __init__(self) -> None:
+        self.injected = 0
+
+    def __call__(self, subs: list[ws.Subscription], rows: dict[str, str]) -> None:
+        for s in subs:
+            if s.who == "B-viewer" and s.refusal is None:
+                row = dict.fromkeys(s.fields, "fabricated") | {"id": rows["A-viewer"]}
+                s.events.append({"data": {"orderCreated": row}})
+                self.injected += 1
+
+
+def _ws_drop(subs: list[ws.Subscription], rows: dict[str, str]) -> None:
+    """No subscription receives anything."""
+    del rows
+    for s in subs:
+        s.events.clear()
+
+
+def _selftest_ws(checks: Checks, args: argparse.Namespace, base: dict[str, Any]) -> None:
+    key = "empty_on_post_served_elsewhere"
+    fabricate = _Fabricate()
+    r = _changed(args, base, "WS", ws_tamper=fabricate)
+    rise = r["metrics"][key] - base["metrics"][key]
+    cells = fabricate.injected
+    _check(
+        checks,
+        "a WS event for a row POST does not serve is reported on WS only",
+        cells > 0
+        and r["columns"] == {"WS"}
+        and len(r["regs"]) == cells
+        and rise == cells
+        and r["quiet"],
+        f"{cells} injected, {len(r['regs'])} regression(s) on {sorted(r['columns'])}, "
+        f"no row on POST +{rise}",
+    )
+    r = _changed(args, base, "WS", ws_tamper=_ws_drop)
+    _check(
+        checks,
+        "WS events that stop arriving are reported on WS only, as data",
+        len(r["regs"]) > 0 and r["columns"] == {"WS"} and r["issues"] == {"data"} and r["quiet"],
+        f"{len(r['regs'])} regression(s) on {sorted(r['columns'])}, issues {sorted(r['issues'])}",
+    )
 
 
 def _serve_rest_refusals(method: str, path: str, status: int, body: bytes) -> Any:
@@ -446,6 +555,9 @@ def selftest(args: argparse.Namespace, base: dict[str, Any]) -> int:
     - A proxy makes REST serve rows where it refused: only REST cells are reported, and
       "refused on POST, served elsewhere" rises.
     - A proxy alters one value on GET: only GET cells are reported, each as data.
+    - The WS column's events are tampered with (the proxy carries no WebSockets): a row
+      POST does not serve, delivered, and events that stop arriving, are each reported
+      on WS only.
     """
     checks: Checks = []
     _selftest_pure(checks)
@@ -466,6 +578,7 @@ def selftest(args: argparse.Namespace, base: dict[str, Any]) -> int:
         f"{r['rewrites']} rewrites, {len(r['regs'])} regression(s) on {sorted(r['columns'])}, "
         f"served elsewhere +{rise}" + ("" if r["quiet"] else f"; other changes {r['noise']}"),
     )
+    _selftest_ws(checks, args, base)
     r = _proxied(args, base, _alter_get, "GET")
     _check(
         checks,
@@ -492,6 +605,7 @@ def main() -> int:
     p.add_argument("--flight", required=True)
     p.add_argument("--issuer", required=True)
     p.add_argument("--key", type=Path, required=True)
+    p.add_argument("--db", required=True, help="the fixture database; the WS column writes rows")
     p.add_argument("--baseline", type=Path, default=HERE / "baseline.json")
     p.add_argument("--report", type=Path)
     p.add_argument("--bless", action="store_true")

@@ -117,6 +117,8 @@ class Corpus:
     order_gated: bool = False
     # Values sent in the `x-probe` header; none means no header is sent.
     headers: list[str] = field(default_factory=list)
+    # Extra selections for the WS column's subscriptions (oracle.ws.SELECTIONS always run).
+    ws_selections: list[list[str]] = field(default_factory=list)
 
     def extended(self, **extra: Any) -> Corpus:
         return replace(
@@ -126,6 +128,7 @@ class Corpus:
             filters=self.filters + list(extra.get("FILTERS", [])),
             order_gated=bool(extra.get("ORDER_GATED", self.order_gated)),
             headers=self.headers + list(extra.get("HEADERS", [])),
+            ws_selections=self.ws_selections + list(extra.get("WS_SELECTIONS", [])),
         )
 
 

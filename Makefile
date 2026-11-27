@@ -2708,7 +2708,7 @@ oracle-graphql-js-selftest:
 # The transports oracle needs every transport compiled in. Its server is copied to
 # target/oracle, so a later default-feature build of target/release/fraiseql-server
 # cannot change what this oracle measured.
-ORACLE_TRANSPORTS_FEATURES := cli,rest,grpc,mcp,arrow
+ORACLE_TRANSPORTS_FEATURES := cli,rest,grpc,mcp,arrow,observers
 oracle-transports-server:
 	@cargo build --release -p fraiseql-cli --bin fraiseql-cli
 	@cargo build --release -p fraiseql-server --bin fraiseql-server --features $(ORACLE_TRANSPORTS_FEATURES)
