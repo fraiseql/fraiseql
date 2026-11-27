@@ -1,0 +1,194 @@
+{
+ "types": [
+  {
+   "name": "Author",
+   "sql_source": "v_author",
+   "implements": [
+    "Node"
+   ],
+   "fields": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    },
+    {
+     "name": "name",
+     "type": "String",
+     "nullable": false
+    },
+    {
+     "name": "email",
+     "type": "String",
+     "nullable": true
+    },
+    {
+     "name": "age",
+     "type": "Int",
+     "nullable": true
+    },
+    {
+     "name": "rating",
+     "type": "Float",
+     "nullable": true
+    },
+    {
+     "name": "role",
+     "type": "Role",
+     "nullable": false
+    },
+    {
+     "name": "nicknames",
+     "type": "[String!]",
+     "nullable": true
+    }
+   ]
+  },
+  {
+   "name": "Post",
+   "sql_source": "v_post",
+   "implements": [
+    "Node"
+   ],
+   "fields": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    },
+    {
+     "name": "title",
+     "type": "String",
+     "nullable": false
+    },
+    {
+     "name": "body",
+     "type": "String",
+     "nullable": true
+    },
+    {
+     "name": "views",
+     "type": "Int",
+     "nullable": false
+    },
+    {
+     "name": "published",
+     "type": "Boolean",
+     "nullable": false
+    },
+    {
+     "name": "createdAt",
+     "type": "DateTime",
+     "nullable": false
+    },
+    {
+     "name": "author",
+     "type": "Author",
+     "nullable": true
+    },
+    {
+     "name": "tags",
+     "type": "[String!]",
+     "nullable": false
+    },
+    {
+     "name": "legacyTitle",
+     "type": "String",
+     "nullable": true,
+     "deprecated": {
+      "reason": "use title"
+     }
+    }
+   ]
+  }
+ ],
+ "enums": [
+  {
+   "name": "Role",
+   "values": [
+    {
+     "name": "ADMIN",
+     "value": "admin"
+    },
+    {
+     "name": "EDITOR",
+     "value": "editor"
+    },
+    {
+     "name": "READER",
+     "value": "reader"
+    },
+    {
+     "name": "GUEST",
+     "value": "guest",
+     "deprecated": {
+      "reason": "gone"
+     }
+    }
+   ]
+  }
+ ],
+ "input_types": [],
+ "interfaces": [
+  {
+   "name": "Node",
+   "fields": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    }
+   ]
+  }
+ ],
+ "unions": [],
+ "queries": [
+  {
+   "name": "posts",
+   "return_type": "Post",
+   "returns_list": true,
+   "nullable": false,
+   "arguments": [],
+   "sql_source": "v_post"
+  },
+  {
+   "name": "post",
+   "return_type": "Post",
+   "returns_list": false,
+   "nullable": true,
+   "arguments": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    }
+   ],
+   "sql_source": "v_post"
+  },
+  {
+   "name": "authors",
+   "return_type": "Author",
+   "returns_list": true,
+   "nullable": false,
+   "arguments": [],
+   "sql_source": "v_author"
+  },
+  {
+   "name": "author",
+   "return_type": "Author",
+   "returns_list": false,
+   "nullable": true,
+   "arguments": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    }
+   ],
+   "sql_source": "v_author"
+  }
+ ],
+ "mutations": [],
+ "subscriptions": [],
+ "naming_convention": "camelCase"
+}
