@@ -30,6 +30,8 @@ PRINCIPALS: dict[str, tuple[str, str | None, list[str] | None, int, str | None] 
 # root -> REST path ("{id}" for the single-row root)
 ROOTS = {
     "orders": "/orders",
+    "rlsOrders": "/rls-orders",
+    "adminOrders": "/admin-orders",
     "customers": "/customers",
     "order": "/orders/{id}",
 }
