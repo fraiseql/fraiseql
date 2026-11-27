@@ -115,7 +115,7 @@ pub use postgres::PostgresCheckpointStore;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::error::{ObserverError, Result};
+use crate::error::Result;
 
 /// Checkpoint state for a listener.
 ///
@@ -238,24 +238,6 @@ pub trait CheckpointStore: Send + Sync + Clone {
     async fn delete(&self, listener_id: &str) -> Result<()>;
 }
 
-// ── CheckpointMode ────────────────────────────────────────────────────────────
-
-/// Whether the checkpoint backend is persistent or ephemeral.
-///
-/// Pass `CheckpointMode::DevOnly` when constructing [`InMemoryCheckpointStore`]
-/// to acknowledge that state will be lost on restart. Call
-/// [`check_checkpoint_requirement`] at startup to enforce that production
-/// environments never accidentally use the in-memory store.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum CheckpointMode {
-    /// Explicitly acknowledged development/test mode.
-    /// Checkpoint state is **not** durable — it is lost on every restart.
-    DevOnly,
-    /// Durable storage (e.g. [`PostgresCheckpointStore`]).
-    Persistent,
-}
-
 // ── InMemoryCheckpointStore ───────────────────────────────────────────────────
 
 /// In-memory checkpoint store for **development and testing only**.
@@ -270,9 +252,6 @@ pub enum CheckpointMode {
 /// the choice is always visible in log output. Use
 /// [`InMemoryCheckpointStore::new_silent`] in unit tests where the warning
 /// adds noise.
-///
-/// Call [`check_checkpoint_requirement`] at application startup to fail-hard
-/// when `FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT=true` is set.
 #[derive(Clone)]
 pub struct InMemoryCheckpointStore {
     store: Arc<dashmap::DashMap<String, CheckpointState>>,
@@ -361,47 +340,6 @@ impl CheckpointStore for InMemoryCheckpointStore {
         self.store.remove(listener_id);
         Ok(())
     }
-}
-
-// ── Startup guard ─────────────────────────────────────────────────────────────
-
-/// Check whether the current environment requires a persistent checkpoint store.
-///
-/// If the environment variable `FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT` is set
-/// to `true`, `1`, or `yes` **and** `mode` is [`CheckpointMode::DevOnly`], this
-/// function returns an error with an operator-actionable message.
-///
-/// Call this once at application startup, after choosing the checkpoint backend:
-///
-/// ```rust
-/// use fraiseql_observers::checkpoint::{CheckpointMode, check_checkpoint_requirement};
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// check_checkpoint_requirement(CheckpointMode::DevOnly)?; // fails in prod
-/// check_checkpoint_requirement(CheckpointMode::Persistent)?; // always ok
-/// # Ok(())
-/// # }
-/// ```
-///
-/// # Errors
-///
-/// Returns [`ObserverError::InvalidConfig`] when `FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT`
-/// is truthy and `mode` is `DevOnly`.
-pub fn check_checkpoint_requirement(mode: CheckpointMode) -> Result<()> {
-    if mode == CheckpointMode::DevOnly {
-        let required = std::env::var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT")
-            .is_ok_and(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes"));
-
-        if required {
-            return Err(ObserverError::InvalidConfig {
-                message:
-                    "FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT is set but InMemoryCheckpointStore \
-                     is in use. Configure PostgresCheckpointStore for production deployments."
-                        .to_string(),
-            });
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

@@ -1657,11 +1657,6 @@ mod rate_limiting_tests_inner {
     }
 
     #[test]
-    fn test_startup_warn_emitted_when_no_distributed_backend() {
-        warn_if_single_node_rate_limiting();
-    }
-
-    #[test]
     fn test_no_toctou_race_condition() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,

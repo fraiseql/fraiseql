@@ -386,8 +386,7 @@ EOF
 
 # 2. Distributed enforcement: the request throttle is per-process — with N replicas
 # the effective limit is N × the configured budget. Size the per-replica budget
-# accordingly, and set FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE=true to get a startup
-# reminder when no distributed backend is configured.
+# accordingly.
 
 # 3. Implement smart rate limiting
 # - Higher per-user budgets for authenticated users (rps_per_user)

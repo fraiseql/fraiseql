@@ -180,9 +180,7 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// replica enforces the limit independently — the effective limit across *N*
 /// replicas is *N × limit*. For true distributed enforcement, configure a
 /// Redis-backed rate limiter via the `redis-rate-limiting` Cargo feature (see
-/// the fraiseql-observers queue feature for the integration pattern). Call
-/// [`warn_if_single_node_rate_limiting`] during server startup to emit a
-/// reminder when no distributed backend is detected.
+/// the fraiseql-observers queue feature for the integration pattern).
 ///
 /// # Type parameter
 ///
@@ -452,27 +450,5 @@ impl<C: Clock> KeyedRateLimiter<C> {
     /// Create a copy for independent testing
     pub fn clone_config(&self) -> AuthRateLimitConfig {
         self.config.clone()
-    }
-}
-
-/// Emit a startup warning when no distributed rate-limiting backend is configured.
-///
-/// Call once during server startup. If the `FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE`
-/// environment variable is set to `true` or `1` (case-insensitive) and the
-/// `FRAISEQL_RATE_LIMIT_BACKEND` variable is unset, a `warn!` is emitted reminding
-/// operators that each replica enforces limits independently — the effective limit
-/// across *N* replicas is *N × limit*.
-///
-/// This is a documentation-only reminder; it does not change runtime behaviour.
-pub fn warn_if_single_node_rate_limiting() {
-    let should_warn = std::env::var("FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE")
-        .is_ok_and(|v| v.eq_ignore_ascii_case("true") || v == "1");
-    let has_backend = std::env::var("FRAISEQL_RATE_LIMIT_BACKEND").is_ok();
-    if should_warn && !has_backend {
-        tracing::warn!(
-            "Rate limiter is per-process; multi-replica deployments are not protected against \
-             distributed brute-force. Configure a Redis-backed rate limiter via the \
-             `redis-rate-limiting` feature for distributed enforcement."
-        );
     }
 }

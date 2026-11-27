@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-auth` drops `warn_if_single_node_rate_limiting`, and `fraiseql-observers`
+  drops `check_checkpoint_requirement` and `CheckpointMode` (#1777).** Nothing in the
+  server called either function, so `FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE`,
+  `FRAISEQL_RATE_LIMIT_BACKEND` and `FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT` had no effect
+  on a running server, while runbook 06 told operators to set the first. A library caller
+  that used `check_checkpoint_requirement` chooses `PostgresCheckpointStore` outright;
+  `InMemoryCheckpointStore::new` still logs a warning when it is built.
+
 - **`fraiseql-auth` drops `StateEncryptionConfig` and
   `StateEncryptionService::from_compiled_schema` (#1777).** The server reads
   `[security.state_encryption]` as the compiled schema types it

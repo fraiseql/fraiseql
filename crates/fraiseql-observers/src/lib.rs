@@ -83,8 +83,7 @@ pub use cache::redis::{RedisCacheBackend, RedisCacheInvalidator};
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};
 #[cfg(feature = "checkpoint")]
 pub use checkpoint::{
-    CheckpointMode, CheckpointState, CheckpointStore, InMemoryCheckpointStore,
-    PostgresCheckpointStore, check_checkpoint_requirement,
+    CheckpointState, CheckpointStore, InMemoryCheckpointStore, PostgresCheckpointStore,
 };
 pub use condition::{ConditionAst, ConditionParser, FieldRead};
 pub use config::{

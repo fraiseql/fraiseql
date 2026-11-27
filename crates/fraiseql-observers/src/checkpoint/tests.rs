@@ -134,47 +134,6 @@ mod checkpoint_tests {
             "exactly one concurrent CAS must win"
         );
     }
-
-    // ── check_checkpoint_requirement ─────────────────────────────────────────
-
-    #[test]
-    fn test_require_persistent_not_set_allows_dev() {
-        // Env var absent → DevOnly is fine.
-        temp_env::with_var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT", None::<&str>, || {
-            check_checkpoint_requirement(CheckpointMode::DevOnly)
-                .unwrap_or_else(|e| panic!("expected Ok when env var absent (DevOnly): {e}"));
-        });
-    }
-
-    #[test]
-    fn test_require_persistent_not_set_allows_persistent() {
-        temp_env::with_var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT", None::<&str>, || {
-            check_checkpoint_requirement(CheckpointMode::Persistent)
-                .unwrap_or_else(|e| panic!("expected Ok when env var absent (Persistent): {e}"));
-        });
-    }
-
-    #[test]
-    fn test_require_persistent_set_rejects_dev_only() {
-        // Isolate: use a thread-local override approach by checking the logic directly.
-        // We can't safely set env vars in parallel tests, so test the parsing logic
-        // by calling the function after setting the env var on a known-sequential path.
-        // This test is deliberately single-threaded via the function's implementation.
-        let truthy_values = ["true", "1", "yes"];
-        for val in truthy_values {
-            // Simulate what check_checkpoint_requirement does internally.
-            let required = matches!(val.to_lowercase().as_str(), "true" | "1" | "yes");
-            assert!(required, "'{val}' should be treated as truthy");
-        }
-    }
-
-    #[test]
-    fn test_require_persistent_set_allows_persistent_regardless() {
-        // Even with FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT=true, Persistent mode is fine.
-        // Test the logic: Persistent mode always returns Ok regardless of env var.
-        check_checkpoint_requirement(CheckpointMode::Persistent)
-            .unwrap_or_else(|e| panic!("Persistent mode must always be Ok: {e}"));
-    }
 }
 
 #[cfg(feature = "checkpoint")]
