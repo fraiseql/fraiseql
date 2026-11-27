@@ -18,6 +18,7 @@
 | Write a `DateTime`, `LocalDateTime`, `Date` or `Time` value | [`docs/features/temporal-values.md`](features/temporal-values.md) |
 | Give SQL per-request values (claims, headers, literals) | [`docs/features/session-variables.md`](features/session-variables.md) |
 | Understand how paginated reads are ordered | [`docs/features/pagination.md`](features/pagination.md) |
+| Know exactly what a `where` operator matches (nulls, case, `LIKE`, arrays) | [`docs/filter-operator-semantics.md`](filter-operator-semantics.md) |
 | Filter strings accent-insensitively (`aicontains`, …) | [`docs/features/accent-insensitive-filters.md`](features/accent-insensitive-filters.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |
 | Understand analytics fact tables | [`docs/modules/fact-table.md`](modules/fact-table.md) |
@@ -59,6 +60,7 @@ docs/
 ├── runbooks/                    ← 15 incident response runbooks
 ├── security/                    ← Threat model, complexity limits
 ├── database-compatibility.md    ← Feature matrix by database backend
+├── filter-operator-semantics.md ← What each `where` operator matches (the SQL oracle's contract)
 ├── fuzzing.md                   ← Fuzzing setup and targets
 ├── linting.md                   ← Lint policy and rationale
 ├── testing.md                   ← Testing strategy overview
