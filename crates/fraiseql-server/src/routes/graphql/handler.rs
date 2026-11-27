@@ -998,7 +998,7 @@ pub(super) fn tenant_dispatch_error(error: &FraiseQLError) -> GraphQLError {
 
 mod incremental;
 mod sse;
-mod stages;
+pub(crate) mod stages;
 
 #[cfg(test)]
 mod tests;
