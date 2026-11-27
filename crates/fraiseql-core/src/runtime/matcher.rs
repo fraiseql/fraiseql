@@ -160,7 +160,7 @@ impl QueryMatch {
             root_field:     query_def.name.clone(),
             selections:     Vec::new(),
             variables:      Vec::new(),
-            fragments:      Vec::new(),
+            fragments:      crate::graphql::types::Fragments::default(),
             source:         std::sync::Arc::from(""),
         };
 

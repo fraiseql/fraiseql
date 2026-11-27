@@ -23,6 +23,8 @@ mod cors_wildcard_tests;
 mod extensions;
 #[cfg(all(test, feature = "arrow"))]
 mod flight_graphql_parity_tests;
+#[cfg(test)]
+mod fragment_uniqueness_transport_tests;
 mod graphql;
 #[cfg(test)]
 mod http_query_method_tests;

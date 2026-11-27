@@ -17,7 +17,9 @@
 use apollo_parser::cst::{self, CstNode as _};
 
 use crate::graphql::{
-    types::{Directive, FieldSelection, FragmentDefinition, GraphQLArgument, GraphQLType},
+    types::{
+        Directive, FieldSelection, FragmentDefinition, Fragments, GraphQLArgument, GraphQLType,
+    },
     value_json::{self, LiteralError},
 };
 
@@ -31,8 +33,8 @@ const RECURSION_LIMIT: usize = 500;
 pub struct Document {
     /// Every operation the document defines.
     pub operations:    Vec<Operation>,
-    /// Every fragment the document defines.
-    pub fragments:     Vec<FragmentDefinition>,
+    /// Every fragment the document defines, each name once.
+    pub fragments:     Fragments,
     /// The request validator's score, once a request computed one that no variable
     /// decided: a document the executor's cache shares is then scored once.
     pub(super) scored: std::sync::OnceLock<super::complexity::Scored>,
@@ -104,7 +106,7 @@ pub fn parse(source: &str) -> Result<Document, DocumentError> {
     }
     let mut document = Document {
         operations: Vec::new(),
-        fragments:  Vec::new(),
+        fragments:  Fragments::default(),
         scored:     std::sync::OnceLock::new(),
     };
     let reader = Reader { at: &at };
@@ -114,7 +116,11 @@ pub fn parse(source: &str) -> Result<Document, DocumentError> {
                 document.operations.push(reader.operation(&op)?);
             },
             cst::Definition::FragmentDefinition(fragment) => {
-                document.fragments.push(reader.fragment(&fragment)?);
+                // § 5.5.1.1: a name defined twice is refused, never resolved to either.
+                document
+                    .fragments
+                    .try_push(reader.fragment(&fragment)?)
+                    .map_err(|e| at.error(offset(fragment.syntax()), &e.to_string()))?;
             },
             other => {
                 let text = other.syntax().text().to_string();

@@ -466,7 +466,7 @@ mod types_tests {
             root_field:     "users".to_string(),
             selections:     vec![],
             variables:      vec![],
-            fragments:      vec![],
+            fragments:      crate::graphql::types::Fragments::default(),
             source:         std::sync::Arc::from("{ users { id name } }"),
         };
 
@@ -481,7 +481,7 @@ mod types_tests {
             root_field:     "users".to_string(),
             selections:     vec![],
             variables:      vec![], // No variables = cacheable
-            fragments:      vec![],
+            fragments:      crate::graphql::types::Fragments::default(),
             source:         std::sync::Arc::from("{ users { id } }"),
         };
 
@@ -505,7 +505,7 @@ mod types_tests {
                 },
                 default_value: None,
             }],
-            fragments:      vec![],
+            fragments:      crate::graphql::types::Fragments::default(),
             source:         std::sync::Arc::from(
                 "query($limit: Int) { users(limit: $limit) { id } }",
             ),

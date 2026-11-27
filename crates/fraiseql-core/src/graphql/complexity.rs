@@ -657,8 +657,9 @@ impl<'a> DocumentAnalyzer<'a> {
         }
         let mut by_name = HashMap::with_capacity(fragments.len());
         for frag in fragments {
-            // First definition wins, matching the previous `.find()` lookup.
-            by_name.entry(frag.name.as_str()).or_insert(*frag);
+            // A document defines each name once (`Fragments` refuses a repeat), so every
+            // reader that looks a spread up by name finds this same definition.
+            by_name.insert(frag.name.as_str(), *frag);
         }
         Self {
             by_name,
