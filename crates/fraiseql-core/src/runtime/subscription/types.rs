@@ -364,10 +364,13 @@ pub struct ActiveSubscription {
 
     /// Events delivered to this subscription so far (ruling AA 5): the next delivery's
     /// position is one more. Shared by clones, so it counts each delivery once.
-    pub delivered:           Arc<std::sync::atomic::AtomicU64>,
+    pub delivered:             Arc<std::sync::atomic::AtomicU64>,
     /// The projected fields a captured image lacked, each warned of once (#2123). Shared
     /// by clones.
-    pub(crate) lacks_warned: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    pub(crate) lacks_warned:   Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    /// The rows this subscription was delivered, as its subscriber read them: a delete is
+    /// delivered only for one of them. Shared by clones.
+    pub(crate) delivered_rows: Arc<tokio::sync::Mutex<crate::runtime::DeliveredRows>>,
 }
 
 impl ActiveSubscription {
@@ -404,6 +407,7 @@ impl ActiveSubscription {
             plan: None,
             delivered: Arc::default(),
             lacks_warned: Arc::default(),
+            delivered_rows: Arc::default(),
         }
     }
 
@@ -441,6 +445,13 @@ pub struct SubscriptionPayload {
 
     /// Projected data (filtered/transformed for this subscription).
     pub data: serde_json::Value,
+
+    /// The payload is a change its subscriber has not yet been served: `event` names the
+    /// row and carries no document, and
+    /// [`SubscriptionManager::serve`](super::SubscriptionManager::serve) serves it from the
+    /// subscriber's own read.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pending: bool,
 }
 
 #[cfg(test)]

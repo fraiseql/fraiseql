@@ -94,7 +94,7 @@ impl Rig {
         // (`orders`), which nothing ever stamps.
         let mut schema = TestSchemaBuilder::new()
             .with_type(
-                TestTypeBuilder::new(entity_type, "v_rest_stream_fanout")
+                TestTypeBuilder::new(entity_type, CHANGE_LOG_IMAGE_VIEW)
                     .with_field(
                         TestFieldBuilder::new("id", fraiseql_core::schema::FieldType::Id).build(),
                     )
@@ -109,7 +109,7 @@ impl Rig {
             )
             .with_query(
                 TestQueryBuilder::new("orders", entity_type)
-                    .with_sql_source("v_rest_stream_fanout")
+                    .with_sql_source(CHANGE_LOG_IMAGE_VIEW)
                     .build(),
             )
             .build();
@@ -143,6 +143,8 @@ impl Rig {
         let sender = bridge.sender();
 
         let url = try_database_url().expect("DATABASE_URL");
+        // A stream's reader reads each event's row from the type's view.
+        ensure_change_log_image_view(pool).await.expect("the row view is created");
         let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
         let executor = Arc::new(Executor::new(schema, adapter));
 

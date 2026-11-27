@@ -108,6 +108,11 @@ pub use embed_selection::{CountSelection, EmbedSelection};
 pub(crate) use enum_coercion::{coerce_enum_argument_object, coerce_enum_arguments};
 pub(crate) use executor::field_type_to_where_type;
 pub use executor::{
+    // A subscriber's own read of an event's row.
+    Change,
+    DELIVERED_ROWS_BOUND,
+    DELIVERED_ROWS_BYTES,
+    DeliveredRows,
     Executor,
     JsonRowStream,
     MutationExecution,
@@ -122,6 +127,8 @@ pub use executor::{
     // runner and the CLI's stamp lint.
     StampContract,
     StreamedRowRead,
+    SubscriberReads,
+    SubscriberRow,
     // A subscription's read plan (ruling AA 4).
     SubscriptionPlan,
     coerce_pagination_arg,

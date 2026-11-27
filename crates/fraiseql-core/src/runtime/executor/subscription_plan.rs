@@ -3,8 +3,11 @@
 //! A subscription is a read of its type delivered by push, so it meets the gates a read of
 //! that type through the same selection meets. The executor plans it at subscribe time, from
 //! the client's resolved selection and the subscriber's principal — the transport hands the
-//! document over and never classifies — and the plan is applied to every event's after-image
-//! (the document the write returned: the only source, nothing is fetched).
+//! document over and never classifies — and the plan is applied to the row each event names,
+//! as the subscriber's own read of it returns it ([`SubscriptionPlan::read`]). The write's
+//! own document is evaluated in the writing session, so it is never served: a view or a
+//! policy that reads the session answers each subscriber as it answers that subscriber's
+//! query.
 //!
 //! At subscribe time ([`Executor::plan_subscription`]) the plan refuses what a read would
 //! refuse: a field the type does not declare, one outside the subscription's compile-time
@@ -13,7 +16,10 @@
 //! evaluated over the document, the #423 refusals that need no document), and a filter on a
 //! field the subscriber may not read (ruling AA 3).
 //!
-//! Per event ([`SubscriptionPlan::deliver`]): the root after-image must be a row the type's
+//! Per event ([`SubscriptionPlan::serve_change`]): the subscriber reads the row under the
+//! type's own row scope and its session settings, and a row its read does not return is not
+//! delivered. A delete is delivered only to a subscription that was delivered the row, as it
+//! last read it. Then ([`SubscriptionPlan::deliver`]) the row must be one the type's
 //! own row policy admits for this subscriber (ruling AC 4 — a subscription is a read of its
 //! type; a policy the document cannot answer refuses the subscription instead); nested
 //! levels row-filtered, projected through
@@ -30,11 +36,21 @@ use std::{
     },
 };
 
+#[path = "subscriber_read.rs"]
+mod subscriber_read;
+
+pub use subscriber_read::{
+    Change, DELIVERED_ROWS_BOUND, DELIVERED_ROWS_BYTES, DeliveredRows, SubscriberReads,
+    SubscriberRow,
+};
+
 use super::{
     context::ExecutorContext,
     core::Executor,
     runners::{
-        query_nested::{RootRowFilter, own_read, type_read_refusal, whole_object},
+        query_nested::{
+            RootRowFilter, own_read, subscriber_row_scope, type_read_refusal, whole_object,
+        },
         read_plan::ReadPlan,
     },
     support::security::refuse_unreadable_where,
@@ -71,7 +87,6 @@ pub struct Served {
 pub struct SubscriptionPlan {
     ctx:          Arc<ExecutorContext>,
     plan:         ReadPlan,
-    root_rows:    Option<RootRowFilter>,
     principal:    Option<SecurityContext>,
     subscription: String,
     type_name:    String,
@@ -79,6 +94,10 @@ pub struct SubscriptionPlan {
     variables:    HashMap<String, serde_json::Value>,
     /// The subscriber's request locale, captured when the plan was made (#1513).
     locale:       Option<String>,
+    /// The view the subscriber reads the type's rows from.
+    source:       String,
+    /// The predicate the subscriber reads them under: the type's own row scope.
+    row_scope:    Option<crate::db::WhereClause>,
 }
 
 impl std::fmt::Debug for SubscriptionPlan {
@@ -114,20 +133,17 @@ impl SubscriptionPlan {
             .and_then(|who| uuid::Uuid::parse_str(who.user_id.as_str()).ok())
     }
 
-    /// Serve one event's after-image to this subscriber, or `None` when the plan suppresses
-    /// it. The served value is completed against the published type (§ 6.4.4, #1522): one
-    /// that cannot be is `null`, with the errors that say why.
+    /// Serve a row this subscriber read to it, or `None` when the plan suppresses it. The served
+    /// value is completed against the published type (§ 6.4.4, #1522): one that cannot be is
+    /// `null`, with the errors that say why.
     ///
     /// `captured` says the change was written outside a mutation and its image is what the
     /// capture trigger stored (#2123): a selected field that image lacks, which completion
     /// serves as `null` (or, non-null, as the event's `null`), carries a field error naming
     /// the table. A mutation's image is served as it is.
     #[must_use]
-    pub fn deliver(&self, after_image: &serde_json::Value, captured: bool) -> Option<Served> {
-        if self.root_rows.as_ref().is_some_and(|rows| !rows.admits(after_image)) {
-            SUPPRESSED.fetch_add(1, Ordering::Relaxed);
-            return None;
-        }
+    pub fn deliver(&self, row: &SubscriberRow, captured: bool) -> Option<Served> {
+        let after_image = row.document();
         let Ok(served) = crate::runtime::with_request_locale_sync(self.locale.clone(), || {
             self.plan.serve(
                 &self.ctx,
@@ -332,13 +348,21 @@ impl Executor {
         principal: Option<&SecurityContext>,
     ) -> Result<SubscriptionPlan> {
         let ctx = &self.ctx;
-        let root_rows = RootRowFilter::plan(ctx, read, type_name, principal)?;
+        RootRowFilter::plan(ctx, read, type_name, principal)?;
+        let row_scope = subscriber_row_scope(ctx, read, type_name, principal)?;
+        let source = ctx
+            .schema
+            .find_type(type_name)
+            .map(|t| t.sql_source.as_str().to_string())
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Type '{type_name}' not found in schema"),
+                path:    None,
+            })?;
         let bound = serde_json::Value::Object(variables.clone().into_iter().collect());
         let plan = ReadPlan::classify(ctx, principal, Some(&bound), &[(type_name, &selections)])?;
         Ok(SubscriptionPlan {
             ctx: Arc::clone(ctx),
             plan,
-            root_rows,
             principal: principal.cloned(),
             subscription: read.to_string(),
             type_name: type_name.to_string(),
@@ -347,6 +371,8 @@ impl Executor {
             // #1513: events are delivered on the connection's task, outside any request
             // scope; the plan serves them in the locale it was planned in.
             locale: crate::runtime::scoped_request_locale(),
+            source,
+            row_scope,
         })
     }
 }

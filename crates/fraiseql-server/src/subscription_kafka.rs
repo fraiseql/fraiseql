@@ -11,6 +11,8 @@
 //! [`fraiseql_core::runtime::SubscriptionPayload`] per *matching active subscription*.
 //! This mirror consumes that channel and publishes each payload, so a Kafka message
 //! corresponds to a delivery a subscriber received, carrying that subscription's name.
+//! A payload is served to the mirror as to its subscriber: from the subscription's own read
+//! of the changed row, under its principal and session, never the writer's document.
 //!
 //! **At-most-once, deliberately.** There is no outbox on this path: a failed publish is
 //! logged and dropped rather than retried. The durable Kafka path is `[cdc_outbound]`
@@ -22,11 +24,11 @@
 //! payloads when a consumer falls behind, and a mirror that silently skips events is
 //! indistinguishable from one that is working.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::runtime::{
-    SubscriptionManager, TransportAdapter,
-    subscription::{KafkaAdapter, KafkaConfig},
+    SubscriberReads, SubscriptionManager, SubscriptionPayload, TransportAdapter,
+    subscription::{KafkaAdapter, KafkaConfig, MirroredSubscription, SubscriptionId},
 };
 use tokio::sync::broadcast::error::RecvError;
 use tracing::{error, info, warn};
@@ -87,13 +89,18 @@ pub fn spawn(
     tasks: &mut tokio::task::JoinSet<()>,
 ) {
     let mut events = manager.receiver();
+    let manager = Arc::clone(manager);
     let SubscriptionKafkaMirror { adapter, topic } = mirror;
+    let mut mirrored = Mirrored::default();
 
     tasks.spawn(async move {
         info!(topic = %topic, "subscription Kafka mirror started");
         loop {
             match events.recv().await {
                 Ok(payload) => {
+                    let Some(payload) = mirrored.serve(&manager, payload).await else {
+                        continue;
+                    };
                     // The adapter logs the failure with topic, key and reason; at most
                     // once means the answer here is to carry on, not to retry.
                     let _ = adapter.deliver(&payload.event, &payload.subscription_name).await;
@@ -116,6 +123,37 @@ pub fn spawn(
             }
         }
     });
+}
+
+/// What the mirror was served, per subscription.
+#[derive(Default)]
+pub(crate) struct Mirrored {
+    subscriptions: HashMap<SubscriptionId, MirroredSubscription>,
+    reads:         SubscriberReads,
+}
+
+impl Mirrored {
+    /// `payload` as the mirror is served it, or `None` when it is not delivered: a read
+    /// that fails is not delivered, never served from the payload in its place.
+    pub(crate) async fn serve(
+        &mut self,
+        manager: &SubscriptionManager,
+        payload: SubscriptionPayload,
+    ) -> Option<SubscriptionPayload> {
+        let id = payload.subscription_id;
+        let mirror = self.subscriptions.entry(id).or_default();
+        let served = match manager.serve_mirrored(payload, &mut self.reads, mirror).await {
+            Ok(served) => served,
+            Err(error) => {
+                warn!(%error, "subscription Kafka mirror: reading a changed row failed");
+                None
+            },
+        };
+        if self.subscriptions.len() > manager.subscription_count() {
+            self.subscriptions.retain(|id, _| manager.is_active(*id));
+        }
+        served
+    }
 }
 
 #[cfg(test)]

@@ -1596,30 +1596,23 @@ impl DocumentRowFilter {
     }
 }
 
-/// The row predicate of a type read as the root of a pushed document — a subscription's
-/// after-image (ruling AC 4): the type's policy AND its own read's `inject_params`, as a
-/// root read of the type composes, evaluated over the document in memory.
+/// The shapes of a type's row predicate a subscription of it is refused (ruling AC 4).
+///
+/// A subscriber reads each event's row under the type's own row scope, in SQL
+/// ([`subscriber_row_scope`]). The subscription is still refused, at subscribe time, the
+/// predicate shapes it has always been refused: a policy that does not declare the keys it
+/// reads, one reading a key the type does not declare, and one that is not a conjunction of
+/// equalities.
 #[derive(Debug)]
-pub(in super::super) struct RootRowFilter {
-    conditions: Vec<DocumentCondition>,
-}
+pub(in super::super) struct RootRowFilter;
 
 impl RootRowFilter {
-    /// Plan the predicate `principal` reads `type_name` under, as the root of
-    /// `subscription`'s documents. `None`: no predicate applies to this principal.
-    ///
-    /// # Errors
-    ///
-    /// `Validation` with no principal under a policy or `inject_params` (#784: refused as
-    /// a query is); `Authorization` for a predicate the document cannot answer — a policy
-    /// that does not declare its keys, one reading a key the type does not declare or a
-    /// native column, or one that is not a conjunction of equalities.
     pub(in super::super) fn plan(
         ctx: &ExecutorContext,
         subscription: &str,
         type_name: &str,
         principal: Option<&SecurityContext>,
-    ) -> Result<Option<Self>> {
+    ) -> Result<()> {
         let schema = &ctx.schema;
         let policy = ctx.config.rls_policy.as_deref();
         let read = schema.type_scope(type_name);
@@ -1643,7 +1636,7 @@ impl RootRowFilter {
             },
         };
         let Some(clause) = clause else {
-            return Ok(None);
+            return Ok(());
         };
         let refuse = |why: &str| FraiseQLError::Authorization {
             message:  format!(
@@ -1682,12 +1675,38 @@ impl RootRowFilter {
                 "is not a conjunction of equalities, the only shape evaluated over a document",
             ));
         }
-        Ok(Some(Self { conditions }))
+        Ok(())
     }
+}
 
-    /// Whether `document` is a row the predicate admits.
-    pub(in super::super) fn admits(&self, document: &serde_json::Value) -> bool {
-        meets(document, &self.conditions)
+/// The row predicate `principal` reads `type_name`'s own rows under, as the root of
+/// `subscription`: the type's policy AND the `inject_params` of the read it is scoped as
+/// (`type_scope`: its own declaration, else its query's), as a root read of the type
+/// composes them, over the type's view. A subscriber's read of the row an event names
+/// runs under it, so the row is one this subscriber's read returns.
+///
+/// # Errors
+///
+/// `Validation` with no principal under a policy or `inject_params`, as
+/// [`RootRowFilter::plan`] refuses it.
+pub(in super::super) fn subscriber_row_scope(
+    ctx: &ExecutorContext,
+    subscription: &str,
+    type_name: &str,
+    principal: Option<&SecurityContext>,
+) -> Result<Option<WhereClause>> {
+    if let Some(read) = ctx.schema.type_scope(type_name) {
+        return level_predicate(ctx, &read.name, type_name, Over::Rows, principal);
+    }
+    match (ctx.config.rls_policy.as_deref(), principal) {
+        (Some(policy), Some(principal)) => Ok(policy
+            .evaluate(principal, &RlsTarget::query(subscription, type_name))?
+            .map(crate::security::RlsWhereClause::into_where_clause)),
+        (Some(_), None) => Err(FraiseQLError::Validation {
+            message: format!("Subscription '{subscription}' not found in schema"),
+            path:    None,
+        }),
+        (None, _) => Ok(None),
     }
 }
 

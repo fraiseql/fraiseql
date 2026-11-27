@@ -428,6 +428,7 @@ mod create_next_message_tests {
             subscription_name: "orderUpdated".to_string(),
             event,
             data: serde_json::json!({ "id": "ord_1", "status": "PAID" }),
+            pending: false,
         }
     }
 

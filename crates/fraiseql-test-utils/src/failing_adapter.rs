@@ -125,6 +125,8 @@ pub struct FailingAdapter {
     text_reads:         Option<Arc<AtomicU64>>,
     /// The scalar keys the last projection read answered as text was handed.
     text_scalar_keys:   Arc<Mutex<Option<Vec<(Vec<u8>, fraiseql_core::db::traits::ScalarKind)>>>>,
+    /// Projection reads never finish.
+    stalls_reads:       bool,
 }
 
 impl FailingAdapter {
@@ -142,6 +144,7 @@ impl FailingAdapter {
             stream_failure:     Arc::new(Mutex::new(None)),
             text_reads:         None,
             text_scalar_keys:   Arc::new(Mutex::new(None)),
+            stalls_reads:       false,
         }
     }
 
@@ -202,6 +205,13 @@ impl FailingAdapter {
     #[must_use]
     pub fn fail_on_query(self, n: u64) -> Self {
         self.fail_config.lock().unwrap().fail_on_query = Some(n);
+        self
+    }
+
+    /// Make every projection read wait forever: a read its caller must time out.
+    #[must_use]
+    pub const fn stalling_reads(mut self) -> Self {
+        self.stalls_reads = true;
         self
     }
 
@@ -422,6 +432,9 @@ impl DatabaseAdapter for FailingAdapter {
         _offset: Option<u32>,
         _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
+        if self.stalls_reads {
+            std::future::pending::<()>().await;
+        }
         self.check_failure(view)?;
         Ok(self.get_response(view))
     }

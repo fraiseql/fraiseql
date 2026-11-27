@@ -941,6 +941,8 @@ async fn handle_subscription_connection(
 
     // Track active operations (operation_id -> subscription id + name)
     let mut active_operations: HashMap<String, ActiveOperation> = HashMap::new();
+    // One event's reads, shared by this connection's subscriptions that read it alike.
+    let mut subscriber_reads = fraiseql_core::runtime::SubscriberReads::default();
 
     // #611 (layer 2): watch for hot-reloaded row-visibility policies. On each bump,
     // every active operation re-derives its conditions against the current policies —
@@ -1138,17 +1140,22 @@ async fn handle_subscription_connection(
                             (Some(tid), Some(src)) => !src.is_suspended(tid),
                             _ => true,
                         };
-                        if tenant_matches && tenant_active {
-                            if let Some((op_id, op)) = active_operations
-                                .iter()
-                                .find(|(_, op)| op.subscription_id == payload.subscription_id)
-                            {
-                                let msg = create_next_message(op_id, &op.response_key, &payload);
-                                if send_server_message(&codec, &mut sender, msg).await.is_err() {
-                                    warn!(connection_id = %connection_id, "Failed to send event");
-                                    break;
-                                }
-                            }
+                        if tenant_matches
+                            && tenant_active
+                            && deliver_to_operation(
+                                &state,
+                                &codec,
+                                &mut sender,
+                                &mut active_operations,
+                                &mut subscriber_reads,
+                                &connection_id,
+                                payload,
+                            )
+                            .await
+                            .is_err()
+                        {
+                            warn!(connection_id = %connection_id, "Failed to send event");
+                            break;
                         }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -1888,6 +1895,68 @@ async fn terminate_operations_after_lag(
         }
         state.lifecycle.on_unsubscribe(&op_id, connection_id).await;
     }
+}
+
+/// How long one subscriber's read of an event's row may take before its operation ends.
+const SUBSCRIBER_READ_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Deliver `payload` to the operation it is for, served from the subscriber's own read of the
+/// row. A read that fails or does not finish ends that operation with an error: nothing is
+/// served in its place. `Err` only when the frame could not be sent.
+async fn deliver_to_operation(
+    state: &SubscriptionState,
+    codec: &ProtocolCodec,
+    sender: &mut futures::stream::SplitSink<WebSocket, Message>,
+    active_operations: &mut HashMap<String, ActiveOperation>,
+    reads: &mut fraiseql_core::runtime::SubscriberReads,
+    connection_id: &str,
+    payload: fraiseql_core::runtime::subscription::SubscriptionPayload,
+) -> Result<(), ()> {
+    let Some(op_id) = active_operations
+        .iter()
+        .find(|(_, op)| op.subscription_id == payload.subscription_id)
+        .map(|(op_id, _)| op_id.clone())
+    else {
+        return Ok(());
+    };
+    let subscription_id = payload.subscription_id;
+    let refusal = match tokio::time::timeout(
+        SUBSCRIBER_READ_TIMEOUT,
+        state.manager.serve(payload, reads),
+    )
+    .await
+    {
+        Ok(Ok(None)) => return Ok(()),
+        Ok(Ok(Some(served))) => {
+            let Some(op) = active_operations.get(&op_id) else {
+                return Ok(());
+            };
+            let msg = create_next_message(&op_id, &op.response_key, &served);
+            return send_server_message(codec, sender, msg).await.map_err(|_| ());
+        },
+        Ok(Err(e)) => {
+            warn!(connection_id = %connection_id, operation_id = %op_id, error = %e, "A subscriber's read of a changed row failed; ending the operation");
+            GraphQLError::with_code(
+                "The subscription ended: reading a changed row failed. Re-subscribe to resume.",
+                "DATABASE_ERROR",
+            )
+        },
+        Err(_) => {
+            warn!(connection_id = %connection_id, operation_id = %op_id, "A subscriber's read of a changed row timed out; ending the operation");
+            GraphQLError::with_code(
+                "The subscription ended: reading a changed row timed out. Re-subscribe to resume.",
+                "TIMEOUT",
+            )
+        },
+    };
+    active_operations.remove(&op_id);
+    if let Err(e) = state.manager.unsubscribe(subscription_id) {
+        warn!(connection_id = %connection_id, operation_id = %op_id, error = %e, "Failed to unsubscribe an ended operation");
+    }
+    state.lifecycle.on_unsubscribe(&op_id, connection_id).await;
+    send_server_message(codec, sender, ServerMessage::error(&op_id, vec![refusal]))
+        .await
+        .map_err(|_| ())
 }
 
 /// Send a server message through the codec, handling protocol translation.
