@@ -1,0 +1,259 @@
+{
+ "types": [
+  {
+   "name": "Customer",
+   "sql_source": "v_customer",
+   "fields": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    },
+    {
+     "name": "tenantId",
+     "type": "String",
+     "nullable": false
+    },
+    {
+     "name": "name",
+     "type": "String",
+     "nullable": false
+    },
+    {
+     "name": "email",
+     "type": "String",
+     "nullable": false,
+     "requires_scope": "read:email"
+    }
+   ]
+  },
+  {
+   "name": "Order",
+   "sql_source": "v_order",
+   "fields": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    },
+    {
+     "name": "tenantId",
+     "type": "String",
+     "nullable": false
+    },
+    {
+     "name": "fkCustomer",
+     "type": "ID",
+     "nullable": false
+    },
+    {
+     "name": "label",
+     "type": "String",
+     "nullable": false
+    },
+    {
+     "name": "amount",
+     "type": "Decimal",
+     "nullable": false
+    },
+    {
+     "name": "big",
+     "type": "BigInt",
+     "nullable": false
+    },
+    {
+     "name": "ratio",
+     "type": "Float",
+     "nullable": true
+    },
+    {
+     "name": "createdAt",
+     "type": "DateTime",
+     "nullable": false
+    },
+    {
+     "name": "status",
+     "type": "OrderStatus",
+     "nullable": false
+    },
+    {
+     "name": "secret",
+     "type": "String",
+     "nullable": false,
+     "requires_scope": "read:secret"
+    },
+    {
+     "name": "note",
+     "type": "String",
+     "nullable": true,
+     "requires_scope": "read:note",
+     "on_deny": "mask"
+    },
+    {
+     "name": "seenTenant",
+     "type": "String",
+     "nullable": true
+    },
+    {
+     "name": "seenSub",
+     "type": "String",
+     "nullable": true
+    },
+    {
+     "name": "seenHdr",
+     "type": "String",
+     "nullable": true
+    },
+    {
+     "name": "customer",
+     "type": "CustomerRef",
+     "nullable": true
+    }
+   ],
+   "relationships": [
+    {
+     "name": "cust",
+     "target_type": "Customer",
+     "cardinality": "ManyToOne",
+     "foreign_key": "fk_customer",
+     "referenced_key": "id"
+    }
+   ]
+  },
+  {
+   "name": "CustomerRef",
+   "fields": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    },
+    {
+     "name": "name",
+     "type": "String",
+     "nullable": false
+    },
+    {
+     "name": "email",
+     "type": "String",
+     "nullable": false,
+     "requires_scope": "read:email"
+    }
+   ]
+  }
+ ],
+ "enums": [
+  {
+   "name": "OrderStatus",
+   "values": [
+    {
+     "name": "PENDING",
+     "value": "pending"
+    },
+    {
+     "name": "SHIPPED",
+     "value": "shipped"
+    },
+    {
+     "name": "CANCELLED",
+     "value": "cancelled"
+    }
+   ]
+  }
+ ],
+ "queries": [
+  {
+   "name": "orders",
+   "return_type": "Order",
+   "returns_list": true,
+   "sql_source": "v_order",
+   "inject_params": {
+    "tenant_id": "jwt:tenant_id"
+   }
+  },
+  {
+   "name": "order",
+   "return_type": "Order",
+   "returns_list": false,
+   "nullable": true,
+   "sql_source": "v_order",
+   "arguments": [
+    {
+     "name": "id",
+     "type": "ID",
+     "nullable": false
+    }
+   ],
+   "inject_params": {
+    "tenant_id": "jwt:tenant_id"
+   }
+  },
+  {
+   "name": "adminOrders",
+   "return_type": "Order",
+   "returns_list": true,
+   "sql_source": "v_order",
+   "requires_role": "admin",
+   "rest": {
+    "path": "/admin-orders"
+   }
+  },
+  {
+   "name": "rlsOrders",
+   "return_type": "Order",
+   "returns_list": true,
+   "sql_source": "v_order_rls",
+   "rest": {
+    "path": "/rls-orders"
+   }
+  },
+  {
+   "name": "customers",
+   "return_type": "Customer",
+   "returns_list": true,
+   "sql_source": "v_customer",
+   "inject_params": {
+    "tenant_id": "jwt:tenant_id"
+   }
+  }
+ ],
+ "mutations": [
+  {
+   "name": "createOrder",
+   "return_type": "Order",
+   "sql_source": "fn_create_order",
+   "operation": "CREATE",
+   "arguments": [
+    {
+     "name": "label",
+     "type": "String",
+     "nullable": false
+    },
+    {
+     "name": "amount",
+     "type": "Decimal",
+     "nullable": false
+    },
+    {
+     "name": "fkCustomer",
+     "type": "ID",
+     "nullable": false
+    }
+   ],
+   "inject_params": {
+    "tenant_id": "jwt:tenant_id"
+   },
+   "invalidates_views": [
+    "v_order"
+   ]
+  }
+ ],
+ "subscriptions": [
+  {
+   "name": "orderCreated",
+   "return_type": "Order",
+   "topic": "order.created"
+  }
+ ],
+ "naming_convention": "camelCase"
+}
