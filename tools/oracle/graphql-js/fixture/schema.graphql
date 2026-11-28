@@ -1,0 +1,582 @@
+"""FraiseQL GraphQL Schema"""
+schema {
+  query: Query
+}
+
+"""
+An instant: a date and a time of day with its offset from UTC ("2026-07-01T12:00:00Z", "2026-07-01T14:00:00+02:00"): a `T`, optional fractional seconds, then `Z` or `±HH:MM`, which is required and never `-00:00`.
+"""
+scalar DateTime @specifiedBy(url: "https://scalars.graphql.org/chillicream/date-time")
+
+"""
+A date and a time of day in no time zone ("2026-07-01T12:00:00"): a `T`, optional fractional seconds, never an offset. What a `timestamp` column without a time zone holds; not an instant.
+"""
+scalar LocalDateTime @specifiedBy(url: "https://scalars.graphql.org/chillicream/local-date-time")
+
+"""A calendar date ("2026-07-01"), `YYYY-MM-DD`."""
+scalar Date @specifiedBy(url: "https://scalars.graphql.org/chillicream/local-date")
+
+"""
+A time of day in no time zone ("09:30:00"): seconds, optional fractional seconds, never an offset.
+"""
+scalar Time @specifiedBy(url: "https://scalars.graphql.org/chillicream/local-time")
+
+"""UUID string"""
+scalar UUID @specifiedBy(url: "https://tools.ietf.org/html/rfc4122")
+
+"""Arbitrary JSON value"""
+scalar JSON @specifiedBy(url: "https://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf")
+
+"""
+A signed 64-bit integer, as a string of its digits ("9007199254740993"): a JSON number past 2^53 is not read exactly by every client. Written as such a string, or as an integer.
+"""
+scalar BigInt
+
+"""
+Exact decimal number, as a string of its digits ("12.50"). Written as such a string, or as an integer.
+"""
+scalar Decimal
+
+type Author implements Node {
+  id: ID!
+  name: String!
+  email: String
+  age: Int
+  rating: Float
+  role: Role!
+  nicknames: [String!]
+}
+
+type Post implements Node {
+  id: ID!
+  title: String!
+  body: String
+  views: Int!
+  published: Boolean!
+  createdAt: DateTime!
+  author: Author
+  tags: [String!]!
+  legacyTitle: String @deprecated(reason: "use title")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  READER
+  GUEST @deprecated(reason: "gone")
+}
+
+"""A key `Post` can be sorted by."""
+enum PostOrderByField {
+  id
+  title
+  body
+  views
+  published
+  createdAt
+  legacyTitle
+}
+
+"""A key `Author` can be sorted by."""
+enum AuthorOrderByField {
+  id
+  name
+  email
+  age
+  rating
+  role
+}
+
+"""Sort direction, and where the key puts its nulls."""
+enum SortDirection {
+  """Ascending, nulls last."""
+  ASC
+
+  """Descending, nulls first."""
+  DESC
+
+  """Ascending, nulls first."""
+  ASC_NULLS_FIRST
+
+  """Ascending, nulls last."""
+  ASC_NULLS_LAST
+
+  """Descending, nulls first."""
+  DESC_NULLS_FIRST
+
+  """Descending, nulls last."""
+  DESC_NULLS_LAST
+}
+
+"""
+Filter predicate over `Post`. Top-level keys are combined with AND; `_and`/`_or`/`_not` nest explicitly.
+"""
+input PostWhereInput {
+  """Filter on `id`."""
+  id: IDFilter
+
+  """Filter on `title`."""
+  title: StringFilter
+
+  """Filter on `body`."""
+  body: StringFilter
+
+  """Filter on `views`."""
+  views: IntFilter
+
+  """Filter on `published`."""
+  published: BooleanFilter
+
+  """Filter on `createdAt`."""
+  createdAt: DateTimeFilter
+
+  """Filter by the related `Author`."""
+  author: AuthorWhereInput
+
+  """Filter on `tags`."""
+  tags: StringListFilter
+
+  """Filter on `legacyTitle`."""
+  legacyTitle: StringFilter
+
+  """Every predicate in the list must match."""
+  _and: [PostWhereInput!]
+
+  """At least one predicate in the list must match."""
+  _or: [PostWhereInput!]
+
+  """The predicate must not match."""
+  _not: PostWhereInput
+}
+
+"""
+Filter predicate over `Author`. Top-level keys are combined with AND; `_and`/`_or`/`_not` nest explicitly.
+"""
+input AuthorWhereInput {
+  """Filter on `id`."""
+  id: IDFilter
+
+  """Filter on `name`."""
+  name: StringFilter
+
+  """Filter on `email`."""
+  email: StringFilter
+
+  """Filter on `age`."""
+  age: IntFilter
+
+  """Filter on `rating`."""
+  rating: FloatFilter
+
+  """Filter on `role`."""
+  role: RoleFilter
+
+  """Filter on `nicknames`."""
+  nicknames: StringListFilter
+
+  """Every predicate in the list must match."""
+  _and: [AuthorWhereInput!]
+
+  """At least one predicate in the list must match."""
+  _or: [AuthorWhereInput!]
+
+  """The predicate must not match."""
+  _not: AuthorWhereInput
+}
+
+"""One sort key over `Post`."""
+input PostOrderByInput {
+  """Field to sort by."""
+  field: PostOrderByField!
+
+  """Sort direction; ascending when omitted."""
+  direction: SortDirection = ASC
+}
+
+"""One sort key over `Author`."""
+input AuthorOrderByInput {
+  """Field to sort by."""
+  field: AuthorOrderByField!
+
+  """Sort direction; ascending when omitted."""
+  direction: SortDirection = ASC
+}
+
+"""Filter operators over `Boolean`. Every key is ANDed."""
+input BooleanFilter {
+  """`eq` — SQL `=`."""
+  eq: Boolean
+
+  """`neq` — SQL `!=`."""
+  neq: Boolean
+
+  """`gt` — SQL `>`."""
+  gt: Boolean
+
+  """`gte` — SQL `>=`."""
+  gte: Boolean
+
+  """`lt` — SQL `<`."""
+  lt: Boolean
+
+  """`lte` — SQL `<=`."""
+  lte: Boolean
+
+  """`in` — SQL `IN`."""
+  in: [Boolean!]
+
+  """`nin` — SQL `NOT IN`."""
+  nin: [Boolean!]
+
+  """`isnull` — SQL `IS NULL`."""
+  isnull: Boolean
+
+  """`is_not_null` — SQL `IS NOT NULL`."""
+  is_not_null: Boolean
+}
+
+"""Filter operators over `DateTime`. Every key is ANDed."""
+input DateTimeFilter {
+  """`eq` — SQL `=`."""
+  eq: DateTime
+
+  """`neq` — SQL `!=`."""
+  neq: DateTime
+
+  """`gt` — SQL `>`."""
+  gt: DateTime
+
+  """`gte` — SQL `>=`."""
+  gte: DateTime
+
+  """`lt` — SQL `<`."""
+  lt: DateTime
+
+  """`lte` — SQL `<=`."""
+  lte: DateTime
+
+  """`in` — SQL `IN`."""
+  in: [DateTime!]
+
+  """`nin` — SQL `NOT IN`."""
+  nin: [DateTime!]
+
+  """`isnull` — SQL `IS NULL`."""
+  isnull: Boolean
+
+  """`is_not_null` — SQL `IS NOT NULL`."""
+  is_not_null: Boolean
+}
+
+"""Filter operators over `Float`. Every key is ANDed."""
+input FloatFilter {
+  """`eq` — SQL `=`."""
+  eq: Float
+
+  """`neq` — SQL `!=`."""
+  neq: Float
+
+  """`gt` — SQL `>`."""
+  gt: Float
+
+  """`gte` — SQL `>=`."""
+  gte: Float
+
+  """`lt` — SQL `<`."""
+  lt: Float
+
+  """`lte` — SQL `<=`."""
+  lte: Float
+
+  """`in` — SQL `IN`."""
+  in: [Float!]
+
+  """`nin` — SQL `NOT IN`."""
+  nin: [Float!]
+
+  """`isnull` — SQL `IS NULL`."""
+  isnull: Boolean
+
+  """`is_not_null` — SQL `IS NOT NULL`."""
+  is_not_null: Boolean
+}
+
+"""Filter operators over `ID`. Every key is ANDed."""
+input IDFilter {
+  """`eq` — SQL `=`."""
+  eq: ID
+
+  """`neq` — SQL `!=`."""
+  neq: ID
+
+  """`gt` — SQL `>`."""
+  gt: ID
+
+  """`gte` — SQL `>=`."""
+  gte: ID
+
+  """`lt` — SQL `<`."""
+  lt: ID
+
+  """`lte` — SQL `<=`."""
+  lte: ID
+
+  """`in` — SQL `IN`."""
+  in: [ID!]
+
+  """`nin` — SQL `NOT IN`."""
+  nin: [ID!]
+
+  """`isnull` — SQL `IS NULL`."""
+  isnull: Boolean
+
+  """`is_not_null` — SQL `IS NOT NULL`."""
+  is_not_null: Boolean
+}
+
+"""Filter operators over `Int`. Every key is ANDed."""
+input IntFilter {
+  """`eq` — SQL `=`."""
+  eq: Int
+
+  """`neq` — SQL `!=`."""
+  neq: Int
+
+  """`gt` — SQL `>`."""
+  gt: Int
+
+  """`gte` — SQL `>=`."""
+  gte: Int
+
+  """`lt` — SQL `<`."""
+  lt: Int
+
+  """`lte` — SQL `<=`."""
+  lte: Int
+
+  """`in` — SQL `IN`."""
+  in: [Int!]
+
+  """`nin` — SQL `NOT IN`."""
+  nin: [Int!]
+
+  """`isnull` — SQL `IS NULL`."""
+  isnull: Boolean
+
+  """`is_not_null` — SQL `IS NOT NULL`."""
+  is_not_null: Boolean
+}
+
+"""Filter operators over `Role`. Every key is ANDed."""
+input RoleFilter {
+  """`eq` — SQL `=`."""
+  eq: Role
+
+  """`neq` — SQL `!=`."""
+  neq: Role
+
+  """`gt` — SQL `>`."""
+  gt: Role
+
+  """`gte` — SQL `>=`."""
+  gte: Role
+
+  """`lt` — SQL `<`."""
+  lt: Role
+
+  """`lte` — SQL `<=`."""
+  lte: Role
+
+  """`in` — SQL `IN`."""
+  in: [Role!]
+
+  """`nin` — SQL `NOT IN`."""
+  nin: [Role!]
+
+  """`isnull` — SQL `IS NULL`."""
+  isnull: Boolean
+
+  """`is_not_null` — SQL `IS NOT NULL`."""
+  is_not_null: Boolean
+}
+
+"""Filter operators over `String`. Every key is ANDed."""
+input StringFilter {
+  """`eq` — SQL `=`."""
+  eq: String
+
+  """`neq` — SQL `!=`."""
+  neq: String
+
+  """`gt` — SQL `>`."""
+  gt: String
+
+  """`gte` — SQL `>=`."""
+  gte: String
+
+  """`lt` — SQL `<`."""
+  lt: String
+
+  """`lte` — SQL `<=`."""
+  lte: String
+
+  """`in` — SQL `IN`."""
+  in: [String!]
+
+  """`nin` — SQL `NOT IN`."""
+  nin: [String!]
+
+  """`isnull` — SQL `IS NULL`."""
+  isnull: Boolean
+
+  """`is_not_null` — SQL `IS NOT NULL`."""
+  is_not_null: Boolean
+
+  """`contains` — SQL `LIKE`."""
+  contains: String
+
+  """`icontains` — SQL `ILIKE`."""
+  icontains: String
+
+  """`startswith` — SQL `LIKE`."""
+  startswith: String
+
+  """`istartswith` — SQL `ILIKE`."""
+  istartswith: String
+
+  """`endswith` — SQL `LIKE`."""
+  endswith: String
+
+  """`iendswith` — SQL `ILIKE`."""
+  iendswith: String
+
+  """`like` — SQL `LIKE`."""
+  like: String
+
+  """`ilike` — SQL `ILIKE`."""
+  ilike: String
+
+  """`nlike` — SQL `NOT LIKE`."""
+  nlike: String
+
+  """`nilike` — SQL `NOT ILIKE`."""
+  nilike: String
+
+  """`regex` — SQL `~`."""
+  regex: String
+
+  """`iregex` — SQL `~*`."""
+  iregex: String
+
+  """`nregex` — SQL `!~`."""
+  nregex: String
+
+  """`niregex` — SQL `!~*`."""
+  niregex: String
+}
+
+"""Filter operators over `[String!]`. Every key is ANDed."""
+input StringListFilter {
+  """`eq` — SQL `=`."""
+  eq: [String!]
+
+  """`neq` — SQL `!=`."""
+  neq: [String!]
+
+  """`gt` — SQL `>`."""
+  gt: [String!]
+
+  """`gte` — SQL `>=`."""
+  gte: [String!]
+
+  """`lt` — SQL `<`."""
+  lt: [String!]
+
+  """`lte` — SQL `<=`."""
+  lte: [String!]
+
+  """`in` — SQL `IN`."""
+  in: [[String!]!]
+
+  """`nin` — SQL `NOT IN`."""
+  nin: [[String!]!]
+
+  """`isnull` — SQL `IS NULL`."""
+  isnull: Boolean
+
+  """`is_not_null` — SQL `IS NOT NULL`."""
+  is_not_null: Boolean
+
+  """`array_contains` — SQL `@>`."""
+  array_contains: JSON
+
+  """`array_contained_by` — SQL `<@`."""
+  array_contained_by: JSON
+
+  """`array_overlaps` — SQL `&&`."""
+  array_overlaps: JSON
+
+  """`len_eq` — SQL `jsonb_array_length =`."""
+  len_eq: Int
+
+  """`len_neq` — SQL `jsonb_array_length !=`."""
+  len_neq: Int
+
+  """`len_gt` — SQL `jsonb_array_length >`."""
+  len_gt: Int
+
+  """`len_gte` — SQL `jsonb_array_length >=`."""
+  len_gte: Int
+
+  """`len_lt` — SQL `jsonb_array_length <`."""
+  len_lt: Int
+
+  """`len_lte` — SQL `jsonb_array_length <=`."""
+  len_lte: Int
+}
+
+interface Node {
+  id: ID!
+}
+
+"""Root query type"""
+type Query {
+  posts(
+    """
+    Filter predicate: a nested object of `{ field: { operator: value } }`, combined with `_and`/`_or`/`_not`.
+    """
+    where: PostWhereInput
+
+    """Sort order: a list of `{ field, direction }` keys, applied in order."""
+    orderBy: [PostOrderByInput!]
+
+    """Maximum number of items to return."""
+    limit: Int
+
+    """Number of items to skip before returning results."""
+    offset: Int
+  ): [Post!]!
+  post(id: ID!): Post
+  authors(
+    """
+    Filter predicate: a nested object of `{ field: { operator: value } }`, combined with `_and`/`_or`/`_not`.
+    """
+    where: AuthorWhereInput
+
+    """Sort order: a list of `{ field, direction }` keys, applied in order."""
+    orderBy: [AuthorOrderByInput!]
+
+    """Maximum number of items to return."""
+    limit: Int
+
+    """Number of items to skip before returning results."""
+    offset: Int
+  ): [Author!]!
+  author(id: ID!): Author
+
+  """Fetch any object that implements the Node interface by its global ID."""
+  node(
+    """Globally unique opaque identifier."""
+    id: ID!
+  ): Node
+}
