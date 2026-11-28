@@ -1,0 +1,1 @@
+[{ "name": "postChanged", "return_type": "Post", "fields": ["id", "title", "views"] }]
