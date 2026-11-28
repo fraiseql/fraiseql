@@ -1,0 +1,19 @@
+{
+  "name": "fraiseql-oracle-graphql-js",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Differential oracle: FraiseQL and graphql-js (the GraphQL reference implementation) answer the same documents over the same schema and data, and must agree.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "oracle": "node oracle.js"
+  },
+  "dependencies": {
+    "graphql": "16.15.0",
+    "graphql-http": "1.23.1",
+    "pg": "8.23.1",
+    "ws": "8.22.1"
+  }
+}
