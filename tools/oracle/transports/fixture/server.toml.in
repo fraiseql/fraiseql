@@ -1,0 +1,16 @@
+# Filled in by run.sh: @HTTP_PORT@, @FLIGHT_PORT@, @SCHEMA@, @DATABASE_URL@, @ISSUER@.
+bind_addr = "127.0.0.1:@HTTP_PORT@"
+flight_bind_addr = "127.0.0.1:@FLIGHT_PORT@"
+schema_path = "@SCHEMA@"
+database_url = "@DATABASE_URL@"
+cache_enabled = false
+introspection_enabled = true
+introspection_require_auth = false
+subscriptions_enabled = true
+
+[auth]
+issuer = "@ISSUER@"
+audience = "oracle-transports"
+jwks_uri = "@ISSUER@/jwks.json"
+allowed_algorithms = ["RS256"]
+required = false
