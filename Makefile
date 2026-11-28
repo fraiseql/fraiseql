@@ -50,6 +50,10 @@ help:
 	@echo "  make image-properties   - Assert what the built image IS (linkage, user, labels, size)"
 	@echo ""
 	@echo "Oracles:"
+	@echo "  make oracle-graphql-js  - FraiseQL vs graphql-js on the same documents, gated by its baseline (Docker)"
+	@echo "  make oracle-graphql-js-selftest - Prove that oracle's gate goes red on each kind of change"
+	@echo "  make oracle-transports  - Every transport vs POST /graphql on the same requests, gated by its baseline (Docker, uv)"
+	@echo "  make oracle-transports-selftest - Prove that oracle's gate goes red on each kind of change"
 	@echo "  make oracle-concurrency - What clients read while writes happen, gated by its baseline (Docker, uv)"
 	@echo "  make oracle-concurrency-selftest - Prove its checker and gate go red on each kind of change"
 	@echo ""
@@ -2687,6 +2691,34 @@ federation-compose-check:
 	@cargo test -p fraiseql-cli --test cascade_federation_shareable_e2e --features federation
 	@cargo test -p fraiseql-cli --test error_union_federation_shareable_e2e --features federation
 	@bash tools/federation/run-compose-check.sh
+
+# graphql-js differential oracle (tools/oracle/graphql-js/README.md). Builds the release
+# binaries, then runs FraiseQL and graphql-js over the same documents and rows; any
+# change from tools/oracle/graphql-js/baseline.json, better or worse, fails. After a
+# deliberate change: `tools/oracle/graphql-js/run.sh --bless` and commit the baseline.
+.PHONY: oracle-graphql-js oracle-graphql-js-selftest oracle-transports oracle-transports-selftest oracle-transports-server
+oracle-graphql-js:
+	@cargo build --release -p fraiseql-cli --bin fraiseql-cli -p fraiseql-server --bin fraiseql-server
+	@bash tools/oracle/graphql-js/run.sh
+
+oracle-graphql-js-selftest:
+	@cargo build --release -p fraiseql-cli --bin fraiseql-cli -p fraiseql-server --bin fraiseql-server
+	@bash tools/oracle/graphql-js/run.sh --selftest
+
+# The transports oracle needs every transport compiled in. Its server is copied to
+# target/oracle, so a later default-feature build of target/release/fraiseql-server
+# cannot change what this oracle measured.
+ORACLE_TRANSPORTS_FEATURES := cli,rest,grpc,mcp,arrow
+oracle-transports-server:
+	@cargo build --release -p fraiseql-cli --bin fraiseql-cli
+	@cargo build --release -p fraiseql-server --bin fraiseql-server --features $(ORACLE_TRANSPORTS_FEATURES)
+	@mkdir -p target/oracle && cp target/release/fraiseql-server target/oracle/fraiseql-server-transports
+
+oracle-transports: oracle-transports-server
+	@FRAISEQL_SERVER=$(CURDIR)/target/oracle/fraiseql-server-transports bash tools/oracle/transports/run.sh
+
+oracle-transports-selftest: oracle-transports-server
+	@FRAISEQL_SERVER=$(CURDIR)/target/oracle/fraiseql-server-transports bash tools/oracle/transports/run.sh --selftest
 
 # ============================================================================
 # Legacy database commands (local PostgreSQL)
