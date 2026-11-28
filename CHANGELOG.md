@@ -1772,6 +1772,7 @@ disagreed, and the promise was the part that was wrong.
 - **`StreamAuthGuard::check` returns `Result<(), StreamRefusal>`.** It returned
   `Result<(), &'static str>`. The variant says whether the token, the subject or the
   identity resolver refused; `StreamRefusal::reason()` is the text it returned before.
+
 ### Added
 
 - **`[security.rate_limiting]` sizes the two budgets that were fixed in code (#1777).**
